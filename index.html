@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1a1a2e">
+<title>像素霸主 - Pixel Overlord</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="game-container">
+  <canvas id="game-canvas"></canvas>
+  <div id="ui-layer"></div>
+  <div id="toast-layer"></div>
+  <div id="loading">
+    <div class="loading-spinner"></div>
+    <div class="loading-text">加载中...</div>
+  </div>
+</div>
+
+<!-- 脚本加载顺序：工具 -> 数据 -> 系统 -> UI -> 游戏主逻辑 -->
+<script src="js/utils.js"></script>
+<script src="js/data.js"></script>
+<script src="js/world.js"></script>
+<script src="js/character.js"></script>
+<script src="js/party.js"></script>
+<script src="js/quest.js"></script>
+<script src="js/battle.js"></script>
+<script src="js/economy.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/save.js"></script>
+<script src="js/render.js"></script>
+<script src="js/game.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
