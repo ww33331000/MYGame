@@ -1,0 +1,31 @@
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <!-- 像素风格游戏图标 -->
+  <rect width="128" height="128" fill="#2a2a2a"/>
+  
+  <!-- 城堡 -->
+  <rect x="20" y="40" width="88" height="60" fill="#666"/>
+  <rect x="20" y="30" width="10" height="20" fill="#555"/>
+  <rect x="98" y="30" width="10" height="20" fill="#555"/>
+  <rect x="50" y="20" width="10" height="30" fill="#555"/>
+  <rect x="68" y="20" width="10" height="30" fill="#555"/>
+  
+  <!-- 城门 -->
+  <rect x="52" y="70" width="24" height="30" fill="#333"/>
+  <rect x="56" y="75" width="16" height="25" fill="#111"/>
+  
+  <!-- 玩家角色 -->
+  <rect x="60" y="90" width="8" height="12" fill="#4a8"/>
+  <rect x="58" y="85" width="12" height="8" fill="#4a8"/>
+  <rect x="60" y="80" width="8" height="8" fill="#fff"/>
+  
+  <!-- 武器 -->
+  <rect x="68" y="85" width="4" height="16" fill="#888"/>
+  <rect x="68" y="82" width="4" height="4" fill="#aaa"/>
+  
+  <!-- 势力旗帜 -->
+  <rect x="20" y="10" width="8" height="20" fill="#822"/>
+  <rect x="28" y="10" width="8" height="8" fill="#822"/>
+  
+  <!-- 文字 -->
+  <text x="64" y="115" font-family="Arial" font-size="12" fill="#fff" text-anchor="middle">PC</text>
+</svg>
