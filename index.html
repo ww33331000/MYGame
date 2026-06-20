@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>大陆风云 - 开放世界RPG</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="game-container">
+    <canvas id="game-canvas"></canvas>
+    
+    <!-- 主菜单 -->
+    <div id="main-menu" class="menu-screen">
+      <h1 class="game-title">大陆风云</h1>
+      <p class="subtitle">开放世界RPG</p>
+      <div class="menu-buttons">
+        <button id="btn-new-game" class="menu-btn">新游戏</button>
+        <button id="btn-load-game" class="menu-btn">加载游戏</button>
+        <button id="btn-settings" class="menu-btn">设置</button>
+      </div>
+    </div>
+    
+    <!-- 设置菜单 -->
+    <div id="settings-menu" class="menu-screen hidden">
+      <h2>设置</h2>
+      <div class="settings-content">
+        <div class="setting-item">
+          <label>音量</label>
+          <input type="range" id="volume-slider" min="0" max="100" value="70">
+        </div>
+        <div class="setting-item">
+          <label>音乐音量</label>
+          <input type="range" id="music-slider" min="0" max="100" value="50">
+        </div>
+      </div>
+      <button id="btn-back-from-settings" class="menu-btn">返回</button>
+    </div>
+    
+    <!-- 角色创建 -->
+    <div id="character-create" class="menu-screen hidden">
+      <h2>创建角色</h2>
+      <div class="create-content">
+        <div class="input-group">
+          <label>角色名称</label>
+          <input type="text" id="player-name" placeholder="输入名称" maxlength="12">
+        </div>
+        <div class="difficulty-select">
+          <label>难度</label>
+          <div class="difficulty-buttons">
+            <button class="diff-btn" data-diff="easy">简单</button>
+            <button class="diff-btn active" data-diff="normal">普通</button>
+            <button class="diff-btn" data-diff="hard">困难</button>
+          </div>
+        </div>
+      </div>
+      <button id="btn-start-game" class="menu-btn">开始冒险</button>
+      <button id="btn-back-from-create" class="menu-btn">返回</button>
+    </div>
+    
+    <!-- 加载游戏 -->
+    <div id="load-game" class="menu-screen hidden">
+      <h2>加载游戏</h2>
+      <div id="save-slots" class="save-slots">
+        <div class="save-slot empty" data-slot="0">
+          <span class="slot-num">存档位 1</span>
+          <span class="slot-info">空</span>
+        </div>
+        <div class="save-slot empty" data-slot="1">
+          <span class="slot-num">存档位 2</span>
+          <span class="slot-info">空</span>
+        </div>
+        <div class="save-slot empty" data-slot="2">
+          <span class="slot-num">存档位 3</span>
+          <span class="slot-info">空</span>
+        </div>
+      </div>
+      <button id="btn-back-from-load" class="menu-btn">返回</button>
+    </div>
+    
+    <!-- 游戏主界面UI -->
+    <div id="game-ui" class="hidden">
+      <!-- 顶部菜单栏 -->
+      <div id="top-bar">
+        <button id="btn-menu" class="ui-btn">菜单</button>
+        <button id="btn-map" class="ui-btn">地图</button>
+        <button id="btn-inventory" class="ui-btn">背包</button>
+        <button id="btn-character" class="ui-btn">角色</button>
+        <button id="btn-party" class="ui-btn">部队</button>
+      </div>
+      
+      <!-- 底部状态栏 -->
+      <div id="bottom-bar">
+        <div class="status-left">
+          <span id="gold-display">💰 0</span>
+          <span id="date-display">第1天</span>
+          <span id="location-display">未探索</span>
+        </div>
+        <div class="status-right">
+          <div class="bar-container">
+            <span>HP</span>
+            <div class="bar hp-bar">
+              <div class="bar-fill" id="hp-fill"></div>
+            </div>
+            <span id="hp-text">100/100</span>
+          </div>
+          <div class="bar-container">
+            <span>体力</span>
+            <div class="bar stamina-bar">
+              <div class="bar-fill" id="stamina-fill"></div>
+            </div>
+            <span id="stamina-text">50/50</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 背包界面 -->
+    <div id="inventory-panel" class="panel hidden">
+      <div class="panel-header">
+        <h3>背包</h3>
+        <button class="close-btn" data-panel="inventory-panel">×</button>
+      </div>
+      <div class="panel-content">
+        <div id="inventory-grid"></div>
+        <div id="inventory-details">
+          <p>选择物品查看详情</p>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 角色界面 -->
+    <div id="character-panel" class="panel hidden">
+      <div class="panel-header">
+        <h3>角色</h3>
+        <button class="close-btn" data-panel="character-panel">×</button>
+      </div>
+      <div class="panel-content">
+        <div class="character-info">
+          <div class="attr-row">
+            <span class="attr-name">等级</span>
+            <span class="attr-value" id="char-level">1</span>
+          </div>
+          <div class="attr-row">
+            <span class="attr-name">经验</span>
+            <span class="attr-value" id="char-exp">0/100</span>
+          </div>
+          <div class="attr-row">
+            <span class="attr-name">力量</span>
+            <span class="attr-value" id="char-str">5</span>
+          </div>
+          <div class="attr-row">
+            <span class="attr-name">敏捷</span>
+            <span class="attr-value" id="char-agi">5</span>
+          </div>
+          <div class="attr-row">
+            <span class="attr-name">体质</span>
+            <span class="attr-value" id="char-vit">5</span>
+          </div>
+          <div class="attr-row">
+            <span class="attr-name">智力</span>
+            <span class="attr-value" id="char-int">5</span>
+          </div>
+          <div class="attr-row">
+            <span class="attr-name">魅力</span>
+            <span class="attr-value" id="char-cha">5</span>
+          </div>
+        </div>
+        <div class="skill-section">
+          <h4>技能</h4>
+          <div id="skill-list"></div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 部队界面 -->
+    <div id="party-panel" class="panel hidden">
+      <div class="panel-header">
+        <h3>部队</h3>
+        <button class="close-btn" data-panel="party-panel">×</button>
+      </div>
+      <div class="panel-content">
+        <div class="party-tabs">
+          <button class="tab-btn active" data-tab="army">军团</button>
+          <button class="tab-btn" data-tab="caravan">商队</button>
+        </div>
+        <div id="army-content" class="tab-content">
+          <div id="army-list"></div>
+          <button id="btn-recruit" class="action-btn">招募士兵</button>
+        </div>
+        <div id="caravan-content" class="tab-content hidden">
+          <div id="caravan-list"></div>
+          <button id="btn-create-caravan" class="action-btn">组建商队</button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 暂停菜单 -->
+    <div id="pause-menu" class="menu-screen hidden">
+      <h2>游戏暂停</h2>
+      <div class="menu-buttons">
+        <button id="btn-resume" class="menu-btn">继续游戏</button>
+        <button id="btn-save" class="menu-btn">保存游戏</button>
+        <button id="btn-main-menu" class="menu-btn">返回主菜单</button>
+      </div>
+    </div>
+    
+    <!-- 城镇/地点详情界面 -->
+    <div id="location-panel" class="panel hidden">
+      <div class="panel-header">
+        <h3 id="location-name">地点名称</h3>
+        <button class="close-btn" data-panel="location-panel">×</button>
+      </div>
+      <div class="panel-content">
+        <div class="location-info">
+          <p id="location-desc">地点描述</p>
+          <div class="location-actions">
+            <button id="btn-trade" class="action-btn">交易</button>
+            <button id="btn-garrison" class="action-btn">驻军</button>
+            <button id="btn-recruit-local" class="action-btn">招募</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 对话框 -->
+    <div id="dialog-box" class="hidden">
+      <div class="dialog-content">
+        <div class="dialog-portrait">
+          <img id="dialog-portrait-img" src="" alt="">
+        </div>
+        <div class="dialog-text">
+          <span id="dialog-name" class="dialog-name">NPC</span>
+          <p id="dialog-message" class="dialog-message">对话内容...</p>
+        </div>
+      </div>
+      <div class="dialog-choices" id="dialog-choices"></div>
+    </div>
+    
+    <!-- 战斗UI覆盖层 -->
+    <div id="battle-ui" class="hidden">
+      <div id="battle-info">
+        <span id="battle-title">战斗</span>
+        <span id="battle-enemy-count">敌方: 0</span>
+        <span id="battle-ally-count">我方: 0</span>
+      </div>
+      <div id="battle-commands">
+        <button class="battle-btn" data-cmd="attack">攻击</button>
+        <button class="battle-btn" data-cmd="defend">防御</button>
+        <button class="battle-btn" data-cmd="special">技能</button>
+        <button class="battle-btn" data-cmd="flee">撤退</button>
+      </div>
+    </div>
+  </div>
+  
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
