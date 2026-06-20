@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>骑砍大陆 - 开放世界像素RPG</title>
+    <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="game-canvas"></canvas>
+        <div id="loading-screen">
+            <div class="loading-content">
+                <h1>骑砍大陆</h1>
+                <div class="loading-bar">
+                    <div class="loading-progress"></div>
+                </div>
+                <p class="loading-text">正在加载游戏资源...</p>
+            </div>
+        </div>
+        <div id="main-menu" class="screen hidden">
+            <div class="menu-background">
+                <div class="menu-title">
+                    <h1>骑砍大陆</h1>
+                    <p>开放世界像素RPG</p>
+                </div>
+                <div class="menu-buttons">
+                    <button id="btn-new-game" class="menu-btn">新游戏</button>
+                    <button id="btn-continue" class="menu-btn">继续游戏</button>
+                    <button id="btn-settings" class="menu-btn">设置</button>
+                </div>
+            </div>
+        </div>
+        <div id="character-create" class="screen hidden">
+            <div class="create-panel">
+                <h2>创建角色</h2>
+                <div class="create-form">
+                    <div class="form-group">
+                        <label>角色名称</label>
+                        <input type="text" id="player-name" placeholder="请输入名称" maxlength="20">
+                    </div>
+                    <div class="form-group">
+                        <label>选择性别</label>
+                        <div class="gender-select">
+                            <button class="gender-btn selected" data-gender="male">男性</button>
+                            <button class="gender-btn" data-gender="female">女性</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>选择背景</label>
+                        <div class="background-select">
+                            <button class="bg-btn selected" data-bg="soldier">老兵</button>
+                            <button class="bg-btn" data-bg="merchant">商人</button>
+                            <button class="bg-btn" data-bg="noble">贵族</button>
+                            <button class="bg-btn" data-bg="peasant">农民</button>
+                        </div>
+                    </div>
+                    <div class="attribute-preview">
+                        <h3>属性加成</h3>
+                        <div class="attr-row"><span>力量:</span><span id="attr-str">+2</span></div>
+                        <div class="attr-row"><span>敏捷:</span><span id="attr-agi">+1</span></div>
+                        <div class="attr-row"><span>智力:</span><span id="attr-int">+0</span></div>
+                        <div class="attr-row"><span>魅力:</span><span id="attr-cha">+1</span></div>
+                    </div>
+                    <button id="btn-confirm-create" class="menu-btn confirm-btn">开始冒险</button>
+                </div>
+            </div>
+        </div>
+        <div id="hud" class="hidden">
+            <div class="hud-top">
+                <div class="player-status">
+                    <span class="player-name" id="hud-player-name">无名旅人</span>
+                    <span class="player-level">等级 <span id="hud-level">1</span></span>
+                </div>
+                <div class="resource-bar">
+                    <span class="gold">💰 <span id="hud-gold">100</span></span>
+                    <span class="date">📅 <span id="hud-date">第1天</span></span>
+                </div>
+                <div class="hud-menu">
+                    <button class="hud-btn" id="btn-menu">≡</button>
+                </div>
+            </div>
+            <div class="hud-bottom">
+                <button class="tab-btn active" data-tab="party">队伍</button>
+                <button class="tab-btn" data-tab="equipment">装备</button>
+                <button class="tab-btn" data-tab="skills">技能</button>
+                <button class="tab-btn" data-tab="quests">任务</button>
+                <button class="tab-btn" data-tab="world">地图</button>
+            </div>
+        </div>
+        <div id="world-map" class="screen hidden">
+            <div class="map-container">
+                <canvas id="map-canvas"></canvas>
+                <div class="map-info">
+                    <div class="location-info hidden" id="location-panel">
+                        <h3 id="loc-name">城镇名称</h3>
+                        <p id="loc-type">类型: 城镇</p>
+                        <p id="loc-owner">统治者: 某势力</p>
+                        <p id="loc-troops">驻军: 50</p>
+                        <div class="location-actions">
+                            <button class="action-btn" id="btn-trade">交易</button>
+                            <button class="action-btn" id="btn-recruit">招募</button>
+                            <button class="action-btn" id="btn-talk">对话</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="inventory-panel" class="panel hidden">
+            <div class="panel-header">
+                <h2>装备</h2>
+                <button class="close-btn" id="btn-close-inventory">×</button>
+            </div>
+            <div class="panel-content">
+                <div class="equipment-slots">
+                    <div class="equip-slot" data-slot="head"><span>头部</span></div>
+                    <div class="equip-slot" data-slot="chest"><span>躯干</span></div>
+                    <div class="equip-slot" data-slot="legs"><span>腿部</span></div>
+                    <div class="equip-slot" data-slot="weapon"><span>武器</span></div>
+                    <div class="equip-slot" data-slot="shield"><span>盾牌</span></div>
+                    <div class="equip-slot" data-slot="mount"><span>坐骑</span></div>
+                </div>
+                <div class="inventory-grid" id="inventory-grid"></div>
+            </div>
+        </div>
+        <div id="party-panel" class="panel hidden">
+            <div class="panel-header">
+                <h2>队伍</h2>
+                <button class="close-btn" id="btn-close-party">×</button>
+            </div>
+            <div class="panel-content">
+                <div class="party-info">
+                    <p>队伍人数: <span id="party-count">1</span> / <span id="party-max">20</span></p>
+                    <p>队伍战力: <span id="party-strength">10</span></p>
+                </div>
+                <div class="troop-list" id="troop-list"></div>
+                <div class="party-actions">
+                    <button class="action-btn" id="btn-add-troop">招募士兵</button>
+                    <button class="action-btn" id="btn-disband-troop">解散士兵</button>
+                </div>
+            </div>
+        </div>
+        <div id="quest-panel" class="panel hidden">
+            <div class="panel-header">
+                <h2>任务</h2>
+                <button class="close-btn" id="btn-close-quest">×</button>
+            </div>
+            <div class="panel-content">
+                <div class="quest-tabs">
+                    <button class="quest-tab active" data-quest-tab="active">进行中</button>
+                    <button class="quest-tab" data-quest-tab="available">可接取</button>
+                    <button class="quest-tab" data-quest-tab="completed">已完成</button>
+                </div>
+                <div class="quest-list" id="quest-list"></div>
+            </div>
+        </div>
+        <div id="battle-screen" class="screen hidden">
+            <canvas id="battle-canvas"></canvas>
+            <div class="battle-ui">
+                <div class="battle-info">
+                    <span>战斗</span>
+                </div>
+                <div class="battle-commands">
+                    <button class="battle-btn" id="btn-attack">攻击</button>
+                    <button class="battle-btn" id="btn-defend">防御</button>
+                    <button class="battle-btn" id="btn-special">技能</button>
+                    <button class="battle-btn" id="btn-flee">撤退</button>
+                </div>
+            </div>
+        </div>
+        <div id="pause-menu" class="modal hidden">
+            <div class="modal-content">
+                <h2>游戏菜单</h2>
+                <div class="modal-buttons">
+                    <button class="menu-btn" id="btn-save">保存游戏</button>
+                    <button class="menu-btn" id="btn-load">加载游戏</button>
+                    <button class="menu-btn" id="btn-resume">继续游戏</button>
+                    <button class="menu-btn" id="btn-quit">返回主菜单</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script type="module" src="src/main.js"></script>
+</body>
+</html>
