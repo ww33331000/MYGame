@@ -50,6 +50,17 @@ class Unit {
     this.target = null;
     this.attackCooldown = 0;
     this.facing = 1;
+    // ===== 动作系统 v2 =====
+    this.action = 'idle';         // idle / move / attack / defend / hit / die
+    this.animPhase = Math.random(); // 0..1 相位（每个单位独立）
+    this.animSpeed = 2.0;         // 每秒循环速度
+    this.actionTimer = 0;         // 动作剩余时间（用于攻击/受伤）
+    this.bobPhase = Math.random() * Math.PI * 2; // 呼吸感
+    // 装备等级（用于视觉渲染）
+    this.armorLevel = Math.min(5, Math.max(0, this.level - 1));
+    this.helmetLevel = this.level >= 3 ? this.level - 2 : 0;
+    this.shieldLevel = (this.level >= 3 && !this.ranged) ? this.level - 2 : 0;
+    this.boots = this.level >= 2;
   }
 
   getTotalDamage() {

@@ -113,179 +113,276 @@ const Utils = {
     }
   },
 
-  // 高级像素角色渲染 - 支持完整装备
+  // ========== 高级像素角色渲染 v2 ==========
+  // 支持：大头/躯干/手臂/腿/武器/盾牌 全部分离，肉眼可识别
+  // 支持动作系统：idle / move / attack / defend
   drawPixelCharacter(ctx, x, y, scale, options) {
     options = options || {};
-    const s = scale || 1.5;
-    const w = 4 * s;   // 宽度
-    const h = 12 * s;  // 总高度
-    const facing = options.facing || 1;
-    // 身体颜色
-    let bodyColor = options.bodyColor || '#4a4a5a';  // 布甲
+    const s = scale || 2;
+    const facing = options.facing || 1;   // 1 右 -1 左
+    const action = options.action || 'idle';
+    const animPhase = options.animPhase || 0;  // 0..1 动画相位
+
+    // ---- 根据 armorLevel 确定身体颜色 ----
+    let bodyColor = options.bodyColor || '#4a4a5a';   // 布甲
+    let bodyHighlight = '#6a6a7a';
     if (options.armorLevel) {
-      if (options.armorLevel >= 5) bodyColor = '#aaaacc';  // 板甲
-      else if (options.armorLevel >= 4) bodyColor = '#777788';  // 链甲
-      else if (options.armorLevel >= 3) bodyColor = '#5a4a3a';  // 锁甲
-      else if (options.armorLevel >= 2) bodyColor = '#5a3a2a';  // 皮甲
+      if (options.armorLevel >= 5) { bodyColor = '#aaaacc'; bodyHighlight = '#ddeeff'; }  // 板甲
+      else if (options.armorLevel >= 4) { bodyColor = '#777788'; bodyHighlight = '#aaaabb'; }  // 链甲
+      else if (options.armorLevel >= 3) { bodyColor = '#5a4a3a'; bodyHighlight = '#8a7a5a'; }  // 锁甲
+      else if (options.armorLevel >= 2) { bodyColor = '#5a3a2a'; bodyHighlight = '#8a6a4a'; }  // 皮甲
     }
     const headColor = options.headColor || '#fcb';
     const isHero = options.isHero || false;
-    // 披风（英雄标志）
+
+    // ---- 动作相关偏移 ----
+    // 攻击：武器挥砍动画；移动：腿部摆动；防御：盾牌前推
+    let legSwing = 0, armSwing = 0, weaponLift = 0, shieldOffset = 0;
+    if (action === 'move') {
+      legSwing = Math.sin(animPhase * Math.PI * 2) * 1.2 * s;
+      armSwing = Math.sin(animPhase * Math.PI * 2) * 0.8 * s;
+    } else if (action === 'attack') {
+      // 0..0.5 挥砍准备  0.5..1 挥砍完成
+      const p = animPhase;
+      weaponLift = Math.sin(p * Math.PI) * 4 * s;
+      armSwing = Math.sin(p * Math.PI) * 2 * s;
+    } else if (action === 'defend') {
+      shieldOffset = 1.5 * s;
+    }
+
+    // ---- 披风（英雄） ----
     if (isHero) {
       ctx.fillStyle = options.capeColor || '#f4d35e';
       ctx.beginPath();
-      ctx.moveTo(x - 3 * s, y - 1 * s);
-      ctx.lineTo(x - 3 * s, y + 7 * s);
-      ctx.lineTo(x - 1.5 * s, y + 8 * s);
-      ctx.lineTo(x - 2 * s, y - 1 * s);
+      ctx.moveTo(x - 4 * s, y - 1 * s);
+      ctx.lineTo(x - 4 * s, y + 9 * s);
+      ctx.lineTo(x - 1 * s, y + 10 * s);
+      ctx.lineTo(x - 1 * s, y - 1 * s);
       ctx.fill();
-      // 披风金色镶边
+      // 金色镶边
       ctx.fillStyle = '#b89856';
-      ctx.fillRect(x - 3 * s, y - 1 * s, s, 8 * s);
+      ctx.fillRect(x - 4 * s, y - 1 * s, s, 10 * s);
     }
-    // 靴子
-    if (options.boots) {
-      ctx.fillStyle = '#3a2a1a';
-      ctx.fillRect(x - 2 * s, y + 7 * s, 2 * s, 2 * s);
-      ctx.fillRect(x, y + 7 * s, 2 * s, 2 * s);
-    } else {
-      ctx.fillStyle = '#543';
-      ctx.fillRect(x - 2 * s, y + 7 * s, 2 * s, 2 * s);
-      ctx.fillRect(x, y + 7 * s, 2 * s, 2 * s);
-    }
-    // 身体（护甲）
-    ctx.fillStyle = bodyColor;
-    ctx.fillRect(x - 2 * s, y, 4 * s, 7 * s);
-    // 护甲细节 - 等级3以上
-    if (options.armorLevel && options.armorLevel >= 3) {
-      ctx.fillStyle = bodyColor === '#aaaacc' ? '#ddddee' : (bodyColor === '#777788' ? '#aaaabb' : '#8a7a4a');
-      ctx.fillRect(x - 2 * s, y + 1 * s, 4 * s, s);  // 肩部
-      ctx.fillRect(x - s, y + 3 * s, 2 * s, s);      // 中央条
-    }
-    // 手臂
-    ctx.fillStyle = bodyColor;
-    ctx.fillRect(x - 3 * s, y + s, s, 4 * s);
-    ctx.fillRect(x + 2 * s, y + s, s, 4 * s);
-    // 头
-    let headFillColor = headColor;
-    // 头盔
-    if (options.helmetLevel) {
+
+    // ---- 头部（较大，占比高） ----
+    // 帽子/头发区
+    if (options.helmetLevel && options.helmetLevel > 0) {
       let helmetColor = '#888899';
-      if (options.helmetLevel >= 4) helmetColor = '#f4d35e';
-      else if (options.helmetLevel >= 3) helmetColor = '#aaa';
+      let plumeColor = null;
+      if (options.helmetLevel >= 5) { helmetColor = '#f4d35e'; plumeColor = '#f86868'; }
+      else if (options.helmetLevel >= 4) { helmetColor = '#aaaabb'; plumeColor = '#f4d35e'; }
+      else if (options.helmetLevel >= 3) { helmetColor = '#aaa'; plumeColor = '#f4d35e'; }
+      else if (options.helmetLevel >= 2) { helmetColor = '#777'; }
+      // 头盔主体（比头稍大）
       ctx.fillStyle = helmetColor;
-      ctx.fillRect(x - 2 * s, y - 4 * s, 4 * s, 3 * s);
-      // 高级头盔装饰
-      if (options.helmetLevel >= 4) {
-        ctx.fillStyle = '#f86868';
-        ctx.fillRect(x - s, y - 5 * s, 2 * s, s);
+      ctx.fillRect(x - 3 * s, y - 8 * s, 6 * s, 5 * s);
+      // 头盔顶装饰/羽毛
+      if (plumeColor) {
+        ctx.fillStyle = plumeColor;
+        ctx.fillRect(x - 1 * s, y - 10 * s, 2 * s, 2 * s);
+        ctx.fillRect(x, y - 11 * s, s, s);
       }
-      headFillColor = helmetColor; // 头盔覆盖头部
-    }
-    if (!options.helmetLevel) {
-      ctx.fillStyle = headFillColor;
-      ctx.fillRect(x - 2 * s, y - 4 * s, 4 * s, 4 * s);
-    }
-    // 头发/眉毛
-    if (!options.helmetLevel) {
-      ctx.fillStyle = '#543';
-      ctx.fillRect(x - 2 * s, y - 4 * s, 4 * s, s);
-    }
-    // 眼睛
-    ctx.fillStyle = '#000';
-    if (facing > 0) {
-      ctx.fillRect(x - 1 * s, y - 2 * s, s, s);
-      ctx.fillRect(x + 1 * s, y - 2 * s, s, s);
-    } else {
-      ctx.fillRect(x - 2 * s, y - 2 * s, s, s);
-      ctx.fillRect(x, y - 2 * s, s, s);
-    }
-    // 嘴
-    if (!options.helmetLevel || options.helmetLevel < 4) {
-      ctx.fillStyle = '#a64a3a';
-      ctx.fillRect(x - s, y, 2 * s, s);
-    }
-    // 武器
-    if (options.weapon) {
-      this.drawPixelWeapon(ctx, x, y, s, options.weapon, facing);
-    }
-    // 盾牌（左手）
-    if (options.shieldLevel) {
-      let shieldColor = '#5a3a2a';
-      if (options.shieldLevel >= 4) shieldColor = '#f4d35e';
-      else if (options.shieldLevel >= 3) shieldColor = '#888';
-      else if (options.shieldLevel >= 2) shieldColor = '#7a5a3a';
-      ctx.fillStyle = shieldColor;
-      const shieldX = facing > 0 ? x - 4 * s : x + 3 * s;
-      ctx.fillRect(shieldX, y, 3 * s, 4 * s);
-      // 盾牌装饰
-      ctx.fillStyle = '#f4d35e';
-      ctx.fillRect(shieldX + s, y + s, s, 2 * s);
-    }
-    // 等级标记
-    if (options.level && options.level > 0) {
-      // 头顶皇冠/等级
-      if (isHero) {
-        ctx.fillStyle = '#f4d35e';
+      // 面甲开口（Lv3+）
+      if (options.helmetLevel >= 3) {
+        ctx.fillStyle = '#2a1a1a';
         ctx.fillRect(x - 2 * s, y - 6 * s, 4 * s, s);
-        ctx.fillStyle = '#f86868';
-        ctx.fillRect(x - s, y - 7 * s, s, s);
-        ctx.fillRect(x, y - 7 * s, s, s);
+      } else {
+        // 露脸（低级头盔）
+        ctx.fillStyle = headColor;
+        ctx.fillRect(x - 2 * s, y - 5 * s, 4 * s, 2 * s);
+        // 眼睛
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(x - 1 * s, y - 4 * s, s, s);
+        ctx.fillRect(x + s, y - 4 * s, s, s);
       }
+    } else {
+      // 头部（头较大，占比高）
+      ctx.fillStyle = headColor;
+      ctx.fillRect(x - 3 * s, y - 8 * s, 6 * s, 5 * s);
+      // 头发
+      ctx.fillStyle = isHero ? '#542a1a' : '#3a2a1a';
+      ctx.fillRect(x - 3 * s, y - 8 * s, 6 * s, s);
+      // 眼睛（朝向感知）
+      ctx.fillStyle = '#1a1a1a';
+      const eyeOffset = facing > 0 ? 0 : 0;
+      ctx.fillRect(x - 2 * s + eyeOffset, y - 6 * s, s, s);
+      ctx.fillRect(x + s + eyeOffset, y - 6 * s, s, s);
+      // 嘴
+      ctx.fillStyle = '#a64a3a';
+      ctx.fillRect(x - s, y - 4 * s, 2 * s, s);
+    }
+
+    // ---- 脖子 ----
+    ctx.fillStyle = headColor;
+    ctx.fillRect(x - s, y - 3 * s, 2 * s, s);
+
+    // ---- 躯干（护甲） ----
+    ctx.fillStyle = bodyColor;
+    ctx.fillRect(x - 3 * s, y - 2 * s, 6 * s, 6 * s);
+    // 护甲高亮装饰
+    if (options.armorLevel >= 2) {
+      ctx.fillStyle = bodyHighlight;
+      ctx.fillRect(x - 3 * s, y - 2 * s, 6 * s, s);  // 肩部
+      ctx.fillRect(x - s, y, 2 * s, 2 * s);           // 中央徽章
+    }
+    // 腰带
+    ctx.fillStyle = '#3a2a1a';
+    ctx.fillRect(x - 3 * s, y + 3 * s, 6 * s, s);
+
+    // ---- 手臂 ----
+    // 左臂（持盾侧）
+    ctx.fillStyle = bodyColor;
+    const leftArmX = facing > 0 ? x - 4 * s : x + 3 * s;
+    ctx.fillRect(leftArmX, y - 1 * s + armSwing * 0.3, s, 4 * s);
+    // 左臂拳头
+    ctx.fillStyle = headColor;
+    ctx.fillRect(leftArmX, y + 3 * s + armSwing * 0.3, s, s);
+    // 右臂（持武器侧）
+    const rightArmX = facing > 0 ? x + 3 * s : x - 4 * s;
+    ctx.fillStyle = bodyColor;
+    ctx.fillRect(rightArmX, y - 1 * s - armSwing * 0.3, s, 4 * s);
+    // 右臂拳头
+    ctx.fillStyle = headColor;
+    ctx.fillRect(rightArmX, y + 3 * s - armSwing * 0.3, s, s);
+
+    // ---- 腿（两条腿，独立） ----
+    ctx.fillStyle = options.boots ? '#3a2a1a' : '#54321a';
+    ctx.fillRect(x - 2 * s, y + 4 * s + legSwing, 2 * s, 5 * s);
+    ctx.fillRect(x, y + 4 * s - legSwing, 2 * s, 5 * s);
+    // 鞋子
+    ctx.fillStyle = '#1a0a00';
+    ctx.fillRect(x - 2 * s, y + 8 * s + legSwing, 2 * s, s);
+    ctx.fillRect(x, y + 8 * s - legSwing, 2 * s, s);
+
+    // ---- 盾牌（左臂前） ----
+    if (options.shieldLevel && options.shieldLevel > 0) {
+      let shieldColor = '#5a3a2a';
+      let rimColor = '#b89856';
+      if (options.shieldLevel >= 4) { shieldColor = '#f4d35e'; rimColor = '#b89856'; }
+      else if (options.shieldLevel >= 3) { shieldColor = '#888'; rimColor = '#aaa'; }
+      else if (options.shieldLevel >= 2) { shieldColor = '#7a5a3a'; rimColor = '#b89856'; }
+      const shX = facing > 0 ? (x - 5 * s - shieldOffset) : (x + 4 * s + shieldOffset);
+      const shW = 3 * s, shH = 5 * s;
+      ctx.fillStyle = shieldColor;
+      ctx.beginPath();
+      ctx.ellipse(shX + shW / 2, y + 1 * s, shW / 2, shH / 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // 盾牌金属环
+      ctx.fillStyle = rimColor;
+      ctx.beginPath();
+      ctx.ellipse(shX + shW / 2, y + 1 * s, shW / 2 + 1, shH / 2 + 1, 0, 0, Math.PI * 2);
+      ctx.strokeStyle = rimColor;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      // 中央盾徽
+      ctx.fillStyle = '#f86868';
+      ctx.fillRect(shX + shW / 2 - s / 2, y + s - s / 2, s, s);
+    }
+
+    // ---- 武器（右手边） ----
+    if (options.weapon) {
+      this.drawPixelWeapon(ctx, x, y, s, options.weapon, facing, weaponLift, armSwing);
+    }
+
+    // ---- 英雄光环 ----
+    if (isHero) {
+      ctx.save();
+      ctx.globalAlpha = 0.25;
+      ctx.fillStyle = '#f4d35e';
+      ctx.beginPath();
+      ctx.arc(x, y, 8 * s, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      // 金色圆环
+      ctx.strokeStyle = '#f4d35e';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(x, y, 8 * s, 0, Math.PI * 2);
+      ctx.stroke();
     }
   },
 
-  // 绘制武器
-  drawPixelWeapon(ctx, x, y, s, weapon, facing) {
+  // ========== 武器绘制 v2 ==========
+  drawPixelWeapon(ctx, x, y, s, weapon, facing, liftOffset, armOffset) {
     const dir = facing > 0 ? 1 : -1;
-    const wx = x + dir * 3 * s;
+    const lift = liftOffset || 0;
+    const arm = armOffset || 0;
+    // 武器基础位置（右手外侧）
+    let baseX = x + dir * 4 * s;
+    let baseY = y - 1 * s - lift;
+
     if (weapon === 'sword' || weapon === 'dagger') {
       // 剑刃
       ctx.fillStyle = weapon === 'sword' ? '#dde' : '#ccd';
-      ctx.fillRect(wx, y - 2 * s, s, 6 * s);
-      // 剑柄
-      ctx.fillStyle = '#6a3a1a';
-      ctx.fillRect(wx, y + 3 * s, s, s);
+      const bladeH = weapon === 'sword' ? 7 * s : 4 * s;
+      ctx.fillRect(baseX, baseY, s, bladeH);
+      // 刀刃高光
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(baseX, baseY + s, s, 2 * s);
       // 剑柄横
       ctx.fillStyle = '#b89856';
-      ctx.fillRect(wx - s, y + 2 * s, 3 * s, s);
-      // 剑刃高亮
-      if (weapon === 'sword') {
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(wx, y - 1 * s, s, 2 * s);
-      }
+      ctx.fillRect(baseX - s, baseY + bladeH, 3 * s, s);
+      // 剑柄握
+      ctx.fillStyle = '#6a3a1a';
+      ctx.fillRect(baseX, baseY + bladeH + s, s, 2 * s);
+      // 柄尾球
+      ctx.fillStyle = '#b89856';
+      ctx.fillRect(baseX, baseY + bladeH + 3 * s, s, s);
     } else if (weapon === 'bow') {
       ctx.strokeStyle = '#6a3a1a';
       ctx.lineWidth = s;
       ctx.beginPath();
-      ctx.arc(wx + dir * s, y + 2 * s, 4 * s, dir > 0 ? -Math.PI / 2 : Math.PI / 2, dir > 0 ? Math.PI / 2 : 3 * Math.PI / 2);
+      ctx.arc(baseX + dir * s, y + 1 * s, 4 * s, dir > 0 ? -Math.PI / 2 : Math.PI / 2, dir > 0 ? Math.PI / 2 : 3 * Math.PI / 2);
       ctx.stroke();
       // 弓弦
-      ctx.strokeStyle = '#aaa';
+      ctx.strokeStyle = '#ddd';
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(wx + dir * s, y - 2 * s);
-      ctx.lineTo(wx + dir * s, y + 6 * s);
+      ctx.moveTo(baseX + dir * s, y - 3 * s);
+      ctx.lineTo(baseX + dir * s, y + 5 * s);
       ctx.stroke();
+      // 弓上箭
+      ctx.fillStyle = '#aaa';
+      ctx.fillRect(baseX + dir * s - (dir > 0 ? 0 : s), y + 1 * s, 4 * s, 1);
     } else if (weapon === 'spear') {
-      // 长矛
+      // 长矛杆
       ctx.fillStyle = '#5a3a1a';
-      ctx.fillRect(wx, y - 5 * s, s, 12 * s);
+      ctx.fillRect(baseX, baseY - 2 * s, s, 14 * s);
       // 矛头
       ctx.fillStyle = '#ccd';
       ctx.beginPath();
-      ctx.moveTo(wx, y - 7 * s);
-      ctx.lineTo(wx + 2 * s, y - 4 * s);
-      ctx.lineTo(wx - s, y - 4 * s);
+      ctx.moveTo(baseX + s / 2, baseY - 5 * s);
+      ctx.lineTo(baseX + 2 * s, baseY - 2 * s);
+      ctx.lineTo(baseX - s, baseY - 2 * s);
       ctx.fill();
-    } else if (weapon === 'axe') {
-      // 斧头
-      ctx.fillStyle = '#5a3a1a';
-      ctx.fillRect(wx, y, s, 6 * s);
+      // 矛头尖高光
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(baseX, baseY - 4 * s, s, s);
+      // 长矛尾铁
       ctx.fillStyle = '#888';
-      ctx.fillRect(wx - 2 * s, y, 4 * s, 3 * s);
-      ctx.fillStyle = '#aab';
-      ctx.fillRect(wx - 2 * s, y + 3 * s, s, s);
+      ctx.fillRect(baseX, baseY + 11 * s, s, s);
+    } else if (weapon === 'axe') {
+      // 斧柄
+      ctx.fillStyle = '#5a3a1a';
+      ctx.fillRect(baseX, baseY, s, 7 * s);
+      // 斧头（大）
+      ctx.fillStyle = '#888';
+      ctx.fillRect(baseX - 2 * s, baseY - s, 5 * s, 3 * s);
+      // 斧头高光
+      ctx.fillStyle = '#ddd';
+      ctx.fillRect(baseX - 2 * s, baseY - s, 5 * s, s);
+      // 斧头刃
+      ctx.fillStyle = '#eee';
+      ctx.fillRect(baseX + 2 * s, baseY - s, s, 3 * s);
+    } else if (weapon === 'staff') {
+      // 法杖
+      ctx.fillStyle = '#4a3a2a';
+      ctx.fillRect(baseX, baseY - 2 * s, s, 12 * s);
+      // 法杖顶宝石
+      ctx.fillStyle = '#6a3aaa';
+      ctx.fillRect(baseX - s, baseY - 3 * s, 3 * s, 2 * s);
+      ctx.fillStyle = '#aa6aff';
+      ctx.fillRect(baseX, baseY - 3 * s, s, s);
     }
   },
 

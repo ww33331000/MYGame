@@ -1,29 +1,34 @@
 // ============ 世界（整个游戏世界） ============
+// v2: 不规则大陆 + 势力分区 + 合理据点分布
 class World {
   constructor() {
-    this.width = 2400;
-    this.height = 1800;
+    // 更大的世界范围
+    this.width = 2880;
+    this.height = 2160;
     this.factions = [];
     this.settlements = [];
-    this.patrols = [];       // 巡逻/敌方部队
-    this.encounters = [];    // 战斗遭遇
+    this.patrols = [];
+    this.encounters = [];
     this.questSystem = null;
     this.currentDay = 1;
-    // 地形数据：网格化的高度图（0=海洋/不可通过, 1=平原, 2=森林, 3=山地, 4=高地）
+    // 地形数据
     this.terrainGrid = null;
-    this.gridSize = 24;       // 每个格子像素
+    this.gridSize = 24;
     this.gridCols = 0;
     this.gridRows = 0;
-    this.landBounds = null;   // 陆地边界 {minX, maxX, minY, maxY}
+    this.landBounds = null;
+    // 势力分区中心（每个势力一个大领地）
+    this.factionZones = {}; // {factionId: {cx, cy, radius}}
+    this.worldSeed = Math.floor(Math.random() * 100000);
   }
 
-  // 噪声函数 - 简单的伪随机梯度噪声
+  // 带种子的噪声函数
   noise2D(x, y) {
-    const n = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+    const n = Math.sin((x + this.worldSeed) * 12.9898 + (y + this.worldSeed) * 78.233) * 43758.5453;
     return n - Math.floor(n);
   }
 
-  // 平滑噪声（值噪声）
+  // 平滑噪声
   smoothNoise(x, y, scale) {
     const sx = x / scale;
     const sy = y / scale;
@@ -33,7 +38,6 @@ class World {
     const y1 = y0 + 1;
     const fx = sx - x0;
     const fy = sy - y0;
-    // 平滑插值
     const ux = fx * fx * (3 - 2 * fx);
     const uy = fy * fy * (3 - 2 * fy);
     const a = this.noise2D(x0, y0);
@@ -43,7 +47,7 @@ class World {
     return a * (1 - ux) * (1 - uy) + b * ux * (1 - uy) + c * (1 - ux) * uy + d * ux * uy;
   }
 
-  // 分形噪声（多倍频叠加）
+  // 分形噪声
   fbm(x, y) {
     let value = 0;
     let amplitude = 0.5;
@@ -56,38 +60,39 @@ class World {
     return value;
   }
 
-  // 生成地形图
+  // 生成不规则大陆形状
   generateTerrain() {
     this.gridCols = Math.ceil(this.width / this.gridSize);
     this.gridRows = Math.ceil(this.height / this.gridSize);
     this.terrainGrid = [];
     let minX = this.width, maxX = 0, minY = this.height, maxY = 0;
+    const cx = this.width / 2;
+    const cy = this.height / 2;
     for (let row = 0; row < this.gridRows; row++) {
       this.terrainGrid[row] = [];
       for (let col = 0; col < this.gridCols; col++) {
         const x = col * this.gridSize;
         const y = row * this.gridSize;
-        // 距离中心的距离 - 制造圆形大陆
-        const cx = this.width / 2;
-        const cy = this.height / 2;
-        const dx = (x - cx) / (this.width * 0.42);
+        // 距离中心 - 椭圆形大陆（横向更宽）
+        const dx = (x - cx) / (this.width * 0.40);
         const dy = (y - cy) / (this.height * 0.42);
         const distFromCenter = Math.sqrt(dx * dx + dy * dy);
-        // 添加噪声扰动让大陆边缘不规则
+        // 噪声扰动制造不规则边缘（类似骑砍大陆）
         const n = this.fbm(x, y);
-        const edgeNoise = n * 0.5;
-        // 大陆形状 - 1=陆地, 0=海洋
-        const landValue = 1 - distFromCenter + edgeNoise - 0.3;
+        const edgeNoise = n * 0.55;
+        // 大陆形状判定
+        const landValue = 1 - distFromCenter + edgeNoise - 0.28;
         let terrain;
         if (landValue < -0.05) {
           terrain = 0; // 海洋
         } else {
-          // 根据噪声确定地形类型
           const detailNoise = this.fbm(x * 0.5, y * 0.5);
-          if (detailNoise > 0.65) terrain = 4;      // 高地/山地
-          else if (detailNoise > 0.5) terrain = 3;  // 山地
-          else if (detailNoise > 0.4) terrain = 2;  // 森林
-          else terrain = 1;                          // 平原
+          // 靠近边缘更容易是森林/山地；中心区域多为平原
+          const distFactor = distFromCenter;
+          if (detailNoise > 0.68 && distFactor > 0.35) terrain = 4;
+          else if (detailNoise > 0.52 && distFactor > 0.25) terrain = 3;
+          else if (detailNoise > 0.42) terrain = 2;
+          else terrain = 1;
         }
         this.terrainGrid[row][col] = terrain;
         if (terrain > 0) {
@@ -101,7 +106,6 @@ class World {
     this.landBounds = { minX, maxX, minY, maxY };
   }
 
-  // 检查某点是否是陆地
   isLand(x, y) {
     if (x < 0 || y < 0 || x >= this.width || y >= this.height) return false;
     const col = Math.floor(x / this.gridSize);
@@ -110,7 +114,6 @@ class World {
     return this.terrainGrid[row][col] > 0;
   }
 
-  // 获取地形类型
   getTerrain(x, y) {
     if (x < 0 || y < 0 || x >= this.width || y >= this.height) return 0;
     const col = Math.floor(x / this.gridSize);
@@ -119,11 +122,10 @@ class World {
     return this.terrainGrid[row][col];
   }
 
-  // 找到附近最近的陆地坐标（防止移动到海洋）
   findNearestLand(x, y, maxDist) {
     if (this.isLand(x, y)) return { x, y };
-    for (let r = 1; r <= maxDist; r += 4) {
-      for (let a = 0; a < Math.PI * 2; a += Math.PI / 8) {
+    for (let r = 1; r <= maxDist; r += 6) {
+      for (let a = 0; a < Math.PI * 2; a += Math.PI / 10) {
         const nx = x + Math.cos(a) * r;
         const ny = y + Math.sin(a) * r;
         if (this.isLand(nx, ny)) return { x: nx, y: ny };
@@ -132,12 +134,34 @@ class World {
     return { x, y };
   }
 
+  // ===== 生成势力分区中心 =====
+  generateFactionZones() {
+    const cx = this.width / 2;
+    const cy = this.height / 2;
+    const nonNeutral = this.factions.filter(f => f.id !== 'neutral');
+    const n = nonNeutral.length;
+    // 势力分布在一个大圆环上（每个势力一个扇形区）
+    const startAngle = Math.random() * Math.PI * 2;
+    nonNeutral.forEach((f, i) => {
+      const angle = startAngle + (i / n) * Math.PI * 2;
+      const radius = Math.min(this.width, this.height) * (0.22 + (i % 2) * 0.06);
+      let fx = cx + Math.cos(angle) * radius;
+      let fy = cy + Math.sin(angle) * radius;
+      // 确保在陆地上
+      if (!this.isLand(fx, fy)) {
+        const pt = this.findNearestLand(fx, fy, 300);
+        fx = pt.x; fy = pt.y;
+      }
+      this.factionZones[f.id] = { cx: fx, cy: fy, radius: 320 + Math.random() * 80 };
+    });
+  }
+
   generate() {
     this.factions = createFactions();
     this.generateTerrain();
+    this.generateFactionZones();
     this.generateSettlements();
     this.questSystem = new QuestSystem(this);
-    // 生成初始任务
     this.settlements.forEach(s => {
       for (let i = 0; i < 2; i++) {
         const q = this.questSystem.generateRandomQuest(s);
@@ -147,117 +171,123 @@ class World {
     this.generatePatrols();
   }
 
-  // 生成定居点（按势力区域+地形）- 仅生成在陆地上
-  generateSettlements() {
-    const centerX = this.width / 2;
-    const centerY = this.height / 2;
-    const sectors = [
-      { angle: 0, rx: 0.35, ry: 0.3 },
-      { angle: Math.PI / 4, rx: 0.38, ry: 0.32 },
-      { angle: Math.PI / 2, rx: 0.3, ry: 0.38 },
-      { angle: 3 * Math.PI / 4, rx: 0.38, ry: 0.32 },
-      { angle: Math.PI, rx: 0.35, ry: 0.3 },
-      { angle: 5 * Math.PI / 4, rx: 0.38, ry: 0.32 },
-      { angle: 3 * Math.PI / 2, rx: 0.3, ry: 0.38 },
-      { angle: 7 * Math.PI / 4, rx: 0.38, ry: 0.32 }
-    ];
+  // 在势力领地内放置（保证在陆地）
+  placeInZone(fzone, minR, maxR, maxAttempts) {
+    for (let i = 0; i < maxAttempts; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const r = minR + Math.random() * (maxR - minR);
+      const x = fzone.cx + Math.cos(angle) * r;
+      const y = fzone.cy + Math.sin(angle) * r;
+      if (this.isLand(x, y)) {
+        // 避免高山 (terrain 4)，据点不应该在山顶
+        if (this.getTerrain(x, y) !== 4) return { x, y };
+      }
+    }
+    // 回退：直接找势力中心附近最近陆地
+    return this.findNearestLand(fzone.cx, fzone.cy, 200);
+  }
 
+  // 生成定居点（按势力分区，形成自然的"势力版图"）
+  generateSettlements() {
     const nonNeutralFactions = this.factions.filter(f => f.id !== 'neutral');
     let idCounter = 0;
     const factionTowns = {};
     nonNeutralFactions.forEach(f => factionTowns[f.id] = []);
     factionTowns['neutral'] = [];
 
-    // 工具函数 - 在陆地放置点
-    const placeOnLand = (cx, cy, maxRadius) => {
-      // 先尝试中心点
-      if (this.isLand(cx, cy)) return { x: cx, y: cy };
-      // 螺旋搜索陆地
-      for (let r = 8; r <= maxRadius; r += 6) {
-        for (let a = 0; a < Math.PI * 2; a += Math.PI / 12) {
-          const x = cx + Math.cos(a) * r;
-          const y = cy + Math.sin(a) * r;
-          if (this.isLand(x, y)) return { x, y };
-        }
-      }
-      return null;
-    };
-
-    // 每个势力生成5个城镇
-    nonNeutralFactions.forEach((f, fi) => {
-      const sector = sectors[fi];
+    // ===== 第一阶段：每势力生成 5 个城镇，在势力领地内均匀分布 =====
+    nonNeutralFactions.forEach((f) => {
+      const zone = this.factionZones[f.id];
+      if (!zone) return;
       for (let t = 0; t < 5; t++) {
-        const baseAngle = sector.angle;
-        const angle = baseAngle + (Math.random() - 0.5) * 0.6;
-        const dist = 0.25 + Math.random() * 0.18;
-        const cx = centerX + Math.cos(angle) * this.width * dist * (sector.rx / 0.35);
-        const cy = centerY + Math.sin(angle) * this.height * dist * (sector.ry / 0.35);
-        const pt = placeOnLand(cx, cy, 150);
+        // 每个城镇围绕势力中心在环形分布
+        const ringR = 40 + t * 45;
+        const pt = this.placeInZone(zone, ringR - 20, ringR + 40, 60);
         if (!pt) continue;
-        const town = new Settlement('town_' + (idCounter++), Utils.placeName() + '城', 'town',
-          pt.x, pt.y, f.id);
+        // 避免距离现有据点太近
+        if (this.settlements.some(s =>
+          Math.hypot(s.x - pt.x, s.y - pt.y) < 80)) continue;
+        const town = new Settlement('town_' + (idCounter++), Utils.placeName() + '城', 'town', pt.x, pt.y, f.id);
         this.settlements.push(town);
         factionTowns[f.id].push(town);
       }
     });
 
-    // 中立城镇
+    // ===== 中立城镇：位于大陆中心/交通要冲 =====
+    const centerX = this.width / 2, centerY = this.height / 2;
     for (let t = 0; t < 5; t++) {
-      const angle = Math.random() * Math.PI * 2;
-      const dist = 0.05 + Math.random() * 0.15;
-      const cx = centerX + Math.cos(angle) * this.width * dist;
-      const cy = centerY + Math.sin(angle) * this.height * dist;
-      const pt = placeOnLand(cx, cy, 100);
-      if (!pt) continue;
-      const town = new Settlement('town_' + (idCounter++), Utils.placeName() + '集', 'town',
-        pt.x, pt.y, 'neutral');
+      const angle = (t / 5) * Math.PI * 2 + Math.random() * 0.5;
+      const r = 120 + Math.random() * 200;
+      let px = centerX + Math.cos(angle) * r;
+      let py = centerY + Math.sin(angle) * r;
+      if (!this.isLand(px, py)) {
+        const pt = this.findNearestLand(px, py, 200);
+        px = pt.x; py = pt.y;
+      }
+      if (this.settlements.some(s => Math.hypot(s.x - px, s.y - py) < 100)) continue;
+      const town = new Settlement('town_' + (idCounter++), Utils.placeName() + '集', 'town', px, py, 'neutral');
       this.settlements.push(town);
       factionTowns['neutral'].push(town);
     }
 
-    // 生成城堡 - 每势力约15个
-    nonNeutralFactions.forEach((f, fi) => {
-      for (let c = 0; c < 15; c++) {
-        if (factionTowns[f.id].length === 0) break;
-        const parentTown = factionTowns[f.id][Math.floor(Math.random() * factionTowns[f.id].length)];
+    // ===== 第二阶段：每势力生成 12~15 个城堡，围绕城镇分布 =====
+    nonNeutralFactions.forEach(f => {
+      const towns = factionTowns[f.id];
+      if (!towns || towns.length === 0) return;
+      const castleCount = 12 + Math.floor(Math.random() * 4);
+      for (let c = 0; c < castleCount; c++) {
+        const parentTown = towns[c % towns.length];
         const angle = Math.random() * Math.PI * 2;
-        const dist = 40 + Math.random() * 80;
+        const dist = 50 + Math.random() * 90;
         const cx = parentTown.x + Math.cos(angle) * dist;
         const cy = parentTown.y + Math.sin(angle) * dist;
-        const pt = placeOnLand(cx, cy, 100);
-        if (!pt) continue;
-        const castle = new Settlement('castle_' + (idCounter++), Utils.placeName() + '堡',
-          'castle', pt.x, pt.y, f.id);
+        if (!this.isLand(cx, cy)) continue;
+        if (this.getTerrain(cx, cy) === 4) continue; // 不建在高山
+        if (this.settlements.some(s => Math.hypot(s.x - cx, s.y - cy) < 50)) continue;
+        const castle = new Settlement('castle_' + (idCounter++), Utils.placeName() + '堡', 'castle', cx, cy, f.id);
         castle.parentId = parentTown.id;
         parentTown.children.push(castle.id);
         this.settlements.push(castle);
       }
     });
 
-    // 生成村庄 - 每势力约35-40个
-    nonNeutralFactions.forEach((f, fi) => {
-      for (let v = 0; v < 38; v++) {
-        if (factionTowns[f.id].length === 0) break;
-        const parentTown = factionTowns[f.id][Math.floor(Math.random() * factionTowns[f.id].length)];
+    // ===== 第三阶段：每势力 30~35 个村庄，围绕城镇/城堡分布 =====
+    nonNeutralFactions.forEach(f => {
+      const towns = factionTowns[f.id];
+      if (!towns || towns.length === 0) return;
+      const villageCount = 30 + Math.floor(Math.random() * 6);
+      for (let v = 0; v < villageCount; v++) {
+        const parentTown = towns[v % towns.length];
         const angle = Math.random() * Math.PI * 2;
-        const dist = 20 + Math.random() * 60;
+        const dist = 25 + Math.random() * 55;
         const cx = parentTown.x + Math.cos(angle) * dist;
         const cy = parentTown.y + Math.sin(angle) * dist;
-        const pt = placeOnLand(cx, cy, 60);
-        if (!pt) continue;
-        const village = new Settlement('village_' + (idCounter++), Utils.placeName() + '村',
-          'village', pt.x, pt.y, f.id);
+        if (!this.isLand(cx, cy)) continue;
+        if (this.settlements.some(s => Math.hypot(s.x - cx, s.y - cy) < 30)) continue;
+        const village = new Settlement('village_' + (idCounter++), Utils.placeName() + '村', 'village', cx, cy, f.id);
         village.parentId = parentTown.id;
         parentTown.children.push(village.id);
         this.settlements.push(village);
       }
     });
+  }
 
+  // 每日更新 - 生成随机遭遇/巡逻
+  onNewDay(day, player) {
+    this.currentDay = day;
+    // 简单刷新一些巡逻
+    this.generatePatrols();
+    // 刷新任务
+    this.settlements.forEach(s => {
+      if (s.questsAvailable.length < 2) {
+        const q = this.questSystem.generateRandomQuest(s);
+        if (q) s.questsAvailable.push(q);
+      }
+    });
     // 统计势力领土
     this.factions.forEach(f => {
       f.territoryCount = this.settlements.filter(s => s.factionId === f.id).length;
     });
-
     console.log('生成了 ' + this.settlements.filter(s => s.type === 'town').length + ' 个城镇, ' +
       this.settlements.filter(s => s.type === 'castle').length + ' 个城堡, ' +
       this.settlements.filter(s => s.type === 'village').length + ' 个村庄, ' +
