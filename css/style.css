@@ -227,6 +227,314 @@ html, body {
 
 .ui-slot .price { color: #f4d35e; font-size: 11px; }
 
+/* 装饰性面板边缘 */
+.ui-panel::before {
+  content: '';
+  position: absolute;
+  top: -2px; left: -2px;
+  right: -2px; bottom: -2px;
+  background: linear-gradient(45deg, #8a7a3e 0%, #f4d35e 50%, #8a7a3e 100%);
+  z-index: -1;
+  border-radius: 5px;
+}
+
+/* 状态徽章 */
+.badge {
+  display: inline-block;
+  background: #8a3a3a;
+  color: #fff;
+  padding: 2px 8px;
+  font-size: 11px;
+  border-radius: 10px;
+  margin-left: 6px;
+}
+
+.badge.gold { background: #b89856; color: #1a1a2e; }
+.badge.green { background: #3a8a3a; }
+.badge.blue { background: #3a5a8a; }
+.badge.purple { background: #6a3a8a; }
+
+/* 分隔线 */
+.divider {
+  height: 1px;
+  background: linear-gradient(to right, transparent, #8a7a3e, transparent);
+  margin: 12px 0;
+}
+
+/* 标签页 */
+.tabs {
+  display: flex;
+  border-bottom: 2px solid #8a7a3e;
+  margin-bottom: 16px;
+}
+
+.tab {
+  flex: 1;
+  padding: 8px 12px;
+  text-align: center;
+  cursor: pointer;
+  color: #b89856;
+  font-size: 13px;
+  transition: all 0.15s;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+}
+
+.tab:hover { color: #f4d35e; }
+.tab.active { color: #f4d35e; border-bottom-color: #f4d35e; background: rgba(244,211,94,0.1); }
+
+/* 卡片样式 */
+.card {
+  background: rgba(0,0,0,0.4);
+  border: 1px solid #4a3e2a;
+  padding: 10px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  transition: all 0.15s;
+  cursor: pointer;
+}
+
+.card:hover {
+  border-color: #f4d35e;
+  background: rgba(244,211,94,0.05);
+  transform: translateX(2px);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.card-title {
+  color: #f4d35e;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.card-content {
+  color: #d0d0d8;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* 角色卡片 */
+.character-card {
+  display: flex;
+  gap: 12px;
+  background: linear-gradient(135deg, rgba(60,40,20,0.6), rgba(30,20,10,0.6));
+  border: 2px solid #8a7a3e;
+  padding: 15px;
+  border-radius: 4px;
+  margin-bottom: 12px;
+}
+
+.character-portrait {
+  width: 80px;
+  height: 80px;
+  background: rgba(0,0,0,0.5);
+  border: 2px solid #f4d35e;
+  border-radius: 4px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.character-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.character-name {
+  color: #f4d35e;
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.character-title {
+  color: #b89856;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.character-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+  font-size: 12px;
+}
+
+/* 装备槽 */
+.equipment-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.equip-slot {
+  aspect-ratio: 1;
+  background: rgba(0,0,0,0.4);
+  border: 2px solid #4a3e2a;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  position: relative;
+  transition: all 0.15s;
+  cursor: pointer;
+}
+
+.equip-slot:hover {
+  border-color: #f4d35e;
+  background: rgba(244,211,94,0.1);
+}
+
+.equip-slot.empty { border-style: dashed; }
+
+.equip-slot .icon { font-size: 28px; }
+.equip-slot .name { font-size: 11px; color: #d0d0d8; text-align: center; margin-top: 4px; }
+.equip-slot .label { font-size: 10px; color: #6a6a7a; }
+
+/* 队伍卡片 */
+.troop-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid #4a3e2a;
+  padding: 8px;
+  border-radius: 4px;
+  margin-bottom: 6px;
+  transition: all 0.15s;
+}
+
+.troop-card:hover { border-color: #f4d35e; background: rgba(244,211,94,0.05); }
+
+.troop-portrait {
+  width: 50px;
+  height: 50px;
+  background: rgba(0,0,0,0.5);
+  border: 1px solid #8a7a3e;
+  border-radius: 3px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.troop-info { flex: 1; }
+.troop-name { color: #f4d35e; font-size: 14px; font-weight: bold; }
+.troop-stats { color: #b8b8c8; font-size: 11px; margin-top: 2px; }
+.troop-hp-bar { background: #3a1e1e; height: 4px; border-radius: 2px; margin-top: 4px; overflow: hidden; }
+.troop-hp-fill { background: #78d878; height: 100%; transition: width 0.3s; }
+
+/* 装饰线 */
+.ornament {
+  display: block;
+  text-align: center;
+  color: #8a7a3e;
+  font-size: 14px;
+  margin: 8px 0;
+  letter-spacing: 4px;
+}
+
+.ornament::before, .ornament::after {
+  content: '─';
+  margin: 0 8px;
+  color: #8a7a3e;
+}
+
+/* 状态图标网格 */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.stat-cell {
+  background: rgba(0,0,0,0.3);
+  border: 1px solid #4a3e2a;
+  padding: 8px 4px;
+  text-align: center;
+  border-radius: 3px;
+}
+
+.stat-cell .value {
+  color: #f4d35e;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.stat-cell .label {
+  color: #8a8a98;
+  font-size: 10px;
+  margin-top: 2px;
+}
+
+/* 按钮组 */
+.btn-group {
+  display: flex;
+  gap: 6px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.btn-group .ui-btn {
+  margin: 0;
+  font-size: 12px;
+  padding: 6px 12px;
+}
+
+/* 标签 */
+.tag {
+  display: inline-block;
+  background: rgba(184,152,86,0.2);
+  border: 1px solid #b89856;
+  color: #b89856;
+  padding: 1px 6px;
+  font-size: 10px;
+  border-radius: 3px;
+  margin-right: 4px;
+}
+
+.tag.green { background: rgba(120,216,120,0.2); border-color: #78d878; color: #78d878; }
+.tag.red { background: rgba(248,104,104,0.2); border-color: #f86868; color: #f86868; }
+.tag.blue { background: rgba(74,186,200,0.2); border-color: #4abac8; color: #4abac8; }
+
+/* 进度条 */
+.progress-bar {
+  background: rgba(0,0,0,0.4);
+  height: 12px;
+  border-radius: 2px;
+  overflow: hidden;
+  margin: 4px 0;
+  border: 1px solid #4a3e2a;
+}
+
+.progress-bar .fill {
+  height: 100%;
+  background: linear-gradient(to right, #6a4a2a, #f4d35e);
+  transition: width 0.3s;
+}
+
+.progress-bar .label {
+  position: absolute;
+  margin-top: -10px;
+  font-size: 10px;
+  color: #f4d35e;
+  right: 0;
+}
+
 .ui-bar {
   position: absolute;
   top: 10px;

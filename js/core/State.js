@@ -28,6 +28,14 @@ const StateManager = {
     this.current = newState;
     this.data = data || {};
     this.listeners.forEach(fn => fn(newState, this.prev, data));
+    // 显示/隐藏快速操作栏
+    if (typeof hideQuickActions === 'function') {
+      if (newState === GameState.WORLD_MAP) {
+        showQuickActions();
+      } else {
+        hideQuickActions();
+      }
+    }
   },
 
   goBack(data) {

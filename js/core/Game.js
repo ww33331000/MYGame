@@ -57,6 +57,14 @@ const Game = {
     // 更新
     this.update(this.dt);
 
+    // 自动存档：每10分钟（游戏中10天）一次
+    if (Game.player && this.dayCount > 0 && this.dayCount % 5 === 0 && Math.random() < this.dt * 2) {
+      if (!this._lastAutoSaveDay || this._lastAutoSaveDay !== this.dayCount) {
+        SaveSystem.autoSave();
+        this._lastAutoSaveDay = this.dayCount;
+      }
+    }
+
     // 渲染
     this.render();
   },

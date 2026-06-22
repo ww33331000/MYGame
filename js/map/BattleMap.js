@@ -277,30 +277,102 @@ class BattleMap {
 
   drawUnit(ctx, u) {
     if (u.isDead) {
+      // 死亡效果
       ctx.globalAlpha = 0.4;
       ctx.fillStyle = '#553';
       ctx.fillRect(u.x - 6, u.y + 6, 12, 3);
+      // 血溅
+      ctx.fillStyle = '#8a3a3a';
+      ctx.fillRect(u.x - 3, u.y + 7, 2, 1);
+      ctx.fillRect(u.x + 2, u.y + 8, 2, 1);
       ctx.globalAlpha = 1;
       return;
     }
-    // HP条
-    const barW = 20;
+    // 阴影
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath();
+    ctx.ellipse(u.x, u.y + 8, 6, 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // HP条背景
+    const barW = 24;
     const hpPct = u.hp / u.maxHp;
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(u.x - barW / 2 - 1, u.y - 22, barW + 2, 5);
     ctx.fillStyle = '#331';
-    ctx.fillRect(u.x - barW / 2, u.y - 18, barW, 3);
-    ctx.fillStyle = u.isAlly ? '#78d878' : '#f86868';
-    ctx.fillRect(u.x - barW / 2, u.y - 18, barW * hpPct, 3);
-    // 单位身体
-    const bodyColor = u.isAlly ? '#6a8aaa' : '#aa6a6a';
-    const headColor = '#fcb';
-    const weapon = u.ranged ? 'bow' : 'sword';
-    Utils.drawPixelHuman(ctx, u.x, u.y - 5, 1.8, bodyColor, headColor, weapon);
-    // 等级标记
-    if (u.level > 3) {
+    ctx.fillRect(u.x - barW / 2, u.y - 21, barW, 3);
+    // HP条
+    if (hpPct > 0.6) {
+      ctx.fillStyle = '#78d878';
+    } else if (hpPct > 0.3) {
+      ctx.fillStyle = '#f4d35e';
+    } else {
+      ctx.fillStyle = '#f86868';
+    }
+    ctx.fillRect(u.x - barW / 2, u.y - 21, barW * hpPct, 3);
+    // 装备数据准备
+    const options = {
+      weapon: u.ranged ? 'bow' : (u.weaponType || 'sword'),
+      facing: u.facing,
+      level: u.level
+    };
+    // 玩家使用装备数据
+    if (u.isPlayer && Game.player) {
+      const eq = Game.player.equipment;
+      options.weapon = eq.weapon ? (eq.weapon.weaponType || 'sword') : 'sword';
+      options.helmetLevel = eq.helmet ? (eq.helmet.level || 1) : 0;
+      options.armorLevel = eq.armor ? (eq.armor.level || 1) : 0;
+      options.shieldLevel = eq.shield ? (eq.shield.level || 1) : 0;
+      options.isHero = true;
+      options.capeColor = '#f4d35e';
+      options.boots = true;
+    } else {
+      // 敌人/盟军根据等级显示装备
+      // 友军是 player faction 阵营
+      const isAlly = u.isAlly;
+      // 基础颜色根据阵营和等级
+      if (isAlly) {
+        if (u.level >= 6) options.armorLevel = 4;  // 骑士级别
+        else if (u.level >= 4) options.armorLevel = 3;  // 锁甲
+        else if (u.level >= 2) options.armorLevel = 2;  // 皮甲
+        else options.armorLevel = 1;  // 布甲
+      } else {
+        if (u.level >= 6) options.armorLevel = 4;
+        else if (u.level >= 4) options.armorLevel = 3;
+        else if (u.level >= 2) options.armorLevel = 2;
+        else options.armorLevel = 1;
+      }
+      // 武器
+      if (u.ranged) options.weapon = 'bow';
+      else if (u.weaponType) options.weapon = u.weaponType;
+      else options.weapon = 'sword';
+      // 头盔（高等级单位有头盔）
+      if (u.level >= 5) options.helmetLevel = 3;
+      else if (u.level >= 3) options.helmetLevel = 2;
+      // 盾牌
+      if (!u.ranged && u.level >= 3 && Math.random() > 0.3) options.shieldLevel = 2;
+      options.boots = u.level >= 3;
+    }
+    // 渲染
+    Utils.drawPixelCharacter(ctx, u.x, u.y - 3, 1.8, options);
+    // 等级/标识
+    if (u.isPlayer) {
+      // 主角：金色圆环+名字
+      ctx.strokeStyle = '#f4d35e';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(u.x, u.y - 6, 10, 0, Math.PI * 2);
+      ctx.stroke();
       ctx.fillStyle = '#f4d35e';
       ctx.font = 'bold 9px "Microsoft YaHei"';
       ctx.textAlign = 'center';
-      ctx.fillText('Lv' + u.level, u.x, u.y - 24);
+      ctx.fillText('Lv' + u.level, u.x, u.y - 28);
+      ctx.textAlign = 'left';
+    } else if (u.level >= 5) {
+      // 高级单位显示等级
+      ctx.fillStyle = '#f4d35e';
+      ctx.font = 'bold 8px "Microsoft YaHei"';
+      ctx.textAlign = 'center';
+      ctx.fillText('Lv' + u.level, u.x, u.y - 27);
       ctx.textAlign = 'left';
     }
   }

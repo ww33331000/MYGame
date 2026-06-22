@@ -33,8 +33,19 @@ class WorldMap {
     const targetCamY = this.player.y - this.viewport.h / 2;
     this.camera.x = Utils.lerp(this.camera.x, targetCamX, 0.1);
     this.camera.y = Utils.lerp(this.camera.y, targetCamY, 0.1);
-    this.camera.x = Utils.clamp(this.camera.x, 0, this.world.width - this.viewport.w);
-    this.camera.y = Utils.clamp(this.camera.y, 0, this.world.height - this.viewport.h);
+    // 限制在陆地边界内
+    if (this.world.landBounds) {
+      const lb = this.world.landBounds;
+      const maxX = Math.max(0, Math.min(this.world.width - this.viewport.w, lb.maxX + 100 - this.viewport.w));
+      const maxY = Math.max(0, Math.min(this.world.height - this.viewport.h, lb.maxY + 100 - this.viewport.h));
+      const minX = Math.min(this.world.width - this.viewport.w, Math.max(0, lb.minX - 100));
+      const minY = Math.min(this.world.height - this.viewport.h, Math.max(0, lb.minY - 100));
+      this.camera.x = Utils.clamp(this.camera.x, minX, maxX);
+      this.camera.y = Utils.clamp(this.camera.y, minY, maxY);
+    } else {
+      this.camera.x = Utils.clamp(this.camera.x, 0, this.world.width - this.viewport.w);
+      this.camera.y = Utils.clamp(this.camera.y, 0, this.world.height - this.viewport.h);
+    }
 
     // 检查遭遇战
     if (!this.player.isMoving) return;
@@ -85,11 +96,17 @@ class WorldMap {
   onWorldClick(wx, wy) {
     const s = this.getSettlementAt(wx, wy, 20);
     if (s) {
-      // 前往并在到达后打开界面
       this.player.startMoveTo(s.x, s.y);
       return true;
     }
-    // 点击空地移动
+    // 检查点击位置是否是陆地
+    if (!this.world.isLand(wx, wy)) {
+      // 找到最近的陆地作为目标
+      const nearest = this.world.findNearestLand(wx, wy, 100);
+      this.player.startMoveTo(nearest.x, nearest.y);
+      toast('正在向最近的陆地移动...', '#b89856');
+      return true;
+    }
     this.player.startMoveTo(wx, wy);
     return true;
   }
@@ -140,37 +157,102 @@ class WorldMap {
   }
 
   drawTerrain(ctx) {
-    // 简化的纹理绘制 - 用纯色渐变
-    const grad = ctx.createLinearGradient(0, 0, this.viewport.w, this.viewport.h);
-    grad.addColorStop(0, '#4a5a3a');
-    grad.addColorStop(1, '#6a7a4a');
-    ctx.fillStyle = grad;
+    if (!this.world.terrainGrid) {
+      // 兼容旧版本
+      const grad = ctx.createLinearGradient(0, 0, this.viewport.w, this.viewport.h);
+      grad.addColorStop(0, '#4a5a3a');
+      grad.addColorStop(1, '#6a7a4a');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, this.viewport.w, this.viewport.h);
+      return;
+    }
+
+    // 海洋背景
+    ctx.fillStyle = '#1a3a6a';
     ctx.fillRect(0, 0, this.viewport.w, this.viewport.h);
-    // 河流/道路（用简单的线条）
-    ctx.fillStyle = 'rgba(80,110,170,0.25)';
-    for (let i = 0; i < 6; i++) {
-      const rx = (i * 277 % this.world.width) - this.camera.x;
-      const ry = (i * 331 % this.world.height) - this.camera.y;
-      ctx.beginPath();
-      ctx.arc(rx, ry, 15 + (i % 3) * 5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    // 山/森林斑点
-    ctx.fillStyle = 'rgba(40,60,30,0.4)';
-    for (let i = 0; i < 40; i++) {
-      const rx = (i * 137 % this.world.width) - this.camera.x;
-      const ry = (i * 97 % this.world.height) - this.camera.y;
-      ctx.beginPath();
-      ctx.arc(rx, ry, 3 + (i % 4) * 2, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    // 网格线
-    ctx.strokeStyle = 'rgba(0,0,0,0.05)';
-    ctx.lineWidth = 1;
+    // 海洋纹理 - 波浪
+    ctx.fillStyle = 'rgba(120,180,220,0.15)';
     for (let i = 0; i < 20; i++) {
+      const rx = ((i * 311) % (this.viewport.w + 100)) - 50;
+      const ry = ((i * 173) % (this.viewport.h + 100)) - 50;
       ctx.beginPath();
-      ctx.moveTo(0, i * 40 - (this.camera.y % 40));
-      ctx.lineTo(this.viewport.w, i * 40 - (this.camera.y % 40));
+      ctx.ellipse(rx, ry, 30, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 计算可见的网格范围
+    const startCol = Math.max(0, Math.floor(this.camera.x / this.world.gridSize));
+    const endCol = Math.min(this.world.gridCols, Math.ceil((this.camera.x + this.viewport.w) / this.world.gridSize));
+    const startRow = Math.max(0, Math.floor(this.camera.y / this.world.gridSize));
+    const endRow = Math.min(this.world.gridRows, Math.ceil((this.camera.y + this.viewport.h) / this.world.gridSize));
+
+    // 颜色映射
+    const terrainColors = {
+      0: null,             // 海洋不绘制（背景已画）
+      1: '#6a8a4a',        // 平原
+      2: '#3a5a2a',        // 森林
+      3: '#7a7a6a',        // 山地
+      4: '#9a9a8a'         // 高地
+    };
+
+    const gs = this.world.gridSize;
+    for (let row = startRow; row < endRow; row++) {
+      for (let col = startCol; col < endCol; col++) {
+        const t = this.world.terrainGrid[row][col];
+        if (t === 0) continue;
+        const color = terrainColors[t];
+        if (!color) continue;
+        const x = col * gs - this.camera.x;
+        const y = row * gs - this.camera.y;
+        // 抖动颜色变化以增加细节
+        const n = this.world.noise2D(col * 13, row * 17);
+        const light = 0.85 + n * 0.3;
+        const r = parseInt(color.substr(1, 2), 16) * light;
+        const g = parseInt(color.substr(3, 2), 16) * light;
+        const b = parseInt(color.substr(5, 2), 16) * light;
+        ctx.fillStyle = `rgb(${Math.floor(r)}, ${Math.floor(g)}, ${Math.floor(b)})`;
+        ctx.fillRect(x, y, gs, gs);
+        // 绘制地形特征
+        if (t === 2) {
+          // 森林 - 树点
+          ctx.fillStyle = 'rgba(20,40,10,0.6)';
+          ctx.fillRect(x + 4, y + 4, 4, 4);
+          ctx.fillRect(x + 14, y + 12, 3, 3);
+        } else if (t === 3) {
+          // 山地 - 三角
+          ctx.fillStyle = 'rgba(80,80,70,0.8)';
+          ctx.beginPath();
+          ctx.moveTo(x + 4, y + 20);
+          ctx.lineTo(x + 12, y + 6);
+          ctx.lineTo(x + 20, y + 20);
+          ctx.fill();
+        } else if (t === 4) {
+          // 高地 - 雪顶
+          ctx.fillStyle = 'rgba(240,240,230,0.8)';
+          ctx.beginPath();
+          ctx.moveTo(x + 4, y + 20);
+          ctx.lineTo(x + 12, y + 4);
+          ctx.lineTo(x + 20, y + 20);
+          ctx.fill();
+        }
+      }
+    }
+
+    // 网格线（仅陆地）
+    ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+    ctx.lineWidth = 1;
+    for (let r = startRow; r <= endRow; r++) {
+      const yy = r * gs - this.camera.y;
+      ctx.beginPath();
+      ctx.moveTo(0, yy);
+      ctx.lineTo(this.viewport.w, yy);
+      ctx.stroke();
+    }
+    for (let c = startCol; c <= endCol; c++) {
+      const xx = c * gs - this.camera.x;
+      ctx.beginPath();
+      ctx.moveTo(xx, 0);
+      ctx.lineTo(xx, this.viewport.h);
       ctx.stroke();
     }
   }
@@ -234,14 +316,46 @@ class WorldMap {
   drawPlayer(ctx) {
     const sx = this.player.x - this.camera.x;
     const sy = this.player.y - this.camera.y;
-    ctx.fillStyle = '#f4d35e';
+    // 阴影
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
     ctx.beginPath();
-    ctx.arc(sx, sy, 7, 0, Math.PI * 2);
+    ctx.ellipse(sx, sy + 12, 8, 3, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    // 绘制小人
-    Utils.drawPixelHuman(ctx, sx, sy + 3, 1.5, '#f4d35e', '#fcb', 'sword');
+    // 玩家光环（英雄标志）
+    const time = Date.now() / 1000;
+    const glow = (Math.sin(time * 2) + 1) / 2;
+    ctx.fillStyle = 'rgba(244,211,94,' + (0.2 + glow * 0.15) + ')';
+    ctx.beginPath();
+    ctx.arc(sx, sy + 2, 14, 0, Math.PI * 2);
+    ctx.fill();
+    // 角色朝向
+    const facing = this.player.isMoving ? (this.player.targetX > this.player.x ? 1 : -1) : 1;
+    // 装备可视化
+    const eq = this.player.equipment;
+    const weapon = eq.weapon ? (eq.weapon.weaponType || 'sword') : 'sword';
+    // 头部颜色根据头盔变
+    let helmetLevel = 0;
+    if (eq.helmet) helmetLevel = eq.helmet.level || 1;
+    let armorLevel = 0;
+    if (eq.armor) armorLevel = eq.armor.level || 1;
+    let shieldLevel = 0;
+    if (eq.shield) shieldLevel = eq.shield.level || 1;
+    Utils.drawPixelCharacter(ctx, sx, sy + 2, 2.2, {
+      isHero: true,
+      capeColor: '#f4d35e',
+      weapon: weapon,
+      helmetLevel: helmetLevel,
+      armorLevel: armorLevel,
+      shieldLevel: shieldLevel,
+      boots: true,
+      facing: facing,
+      level: this.player.level
+    });
+    // 名字
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 11px "Microsoft YaHei"';
+    ctx.textAlign = 'center';
+    ctx.fillText(this.player.name, sx, sy - 18);
+    ctx.textAlign = 'left';
   }
 }

@@ -35,6 +35,7 @@ class Unit {
     this.baseDefense = tmpl.defense;
     this.speed = tmpl.speed;
     this.weapon = tmpl.weapon;
+    this.weaponType = tmpl.weaponType || (tmpl.ranged ? 'bow' : 'sword');
     this.level = tmpl.level;
     this.ranged = tmpl.ranged || false;
     this.hostile = tmpl.hostile || false;
@@ -42,6 +43,7 @@ class Unit {
     this.exp = 0;
     this.isPlayer = false;
     this.isDead = false;
+    this.bodyColor = null;       // 自定义身体颜色
     // 战斗用
     this.x = 0;
     this.y = 0;

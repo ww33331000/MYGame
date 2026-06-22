@@ -15,29 +15,73 @@ class UIManager {
   // 渲染到画布
   render(ctx) {
     if (!Game.player) return;
-    // 右上角显示当前状态
+    // 左上角 - 状态栏
     const w = Game.canvas.width;
-    ctx.font = '12px "Microsoft YaHei"';
-    ctx.textAlign = 'right';
-    ctx.fillStyle = '#f4d35e';
-    ctx.fillText('第 ' + (Game.dayCount || 1) + ' 天', w - 10, 10);
-    ctx.fillStyle = '#f4d35e';
-    ctx.fillText('💰 ' + (Game.player.party.gold || 0), w - 10, 28);
-    ctx.fillStyle = '#78d878';
-    ctx.fillText('👥 ' + Game.player.party.members.filter(m => !m.isDead).length + '/' + Game.player.party.members.length, w - 10, 46);
-    // HP条
-    const hpPct = Game.player.hp / Game.player.maxHp;
-    ctx.fillStyle = '#5a1e1e';
-    ctx.fillRect(w - 110, 62, 100, 8);
-    ctx.fillStyle = '#d84848';
-    ctx.fillRect(w - 110, 62, 100 * Math.max(0, hpPct), 8);
+    const h = Game.canvas.height;
+    // 时间信息
+    const timeOfDay = ((Game.gameTime % 86400) / 3600);
+    const timeLabel = timeOfDay < 6 ? '深夜' : (timeOfDay < 12 ? '上午' : (timeOfDay < 18 ? '下午' : '夜晚'));
+    // 顶部状态栏
+    ctx.fillStyle = 'rgba(15,15,30,0.92)';
+    ctx.fillRect(8, 8, 280, 100);
     ctx.strokeStyle = '#8a7a3e';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(8, 8, 280, 100);
+    // 内描边
+    ctx.strokeStyle = '#5a4a2a';
     ctx.lineWidth = 1;
-    ctx.strokeRect(w - 110, 62, 100, 8);
+    ctx.strokeRect(11, 11, 274, 94);
+    // 文本
+    ctx.font = 'bold 14px "Microsoft YaHei"';
+    ctx.textAlign = 'left';
     ctx.fillStyle = '#f4d35e';
-    ctx.font = '10px "Microsoft YaHei"';
+    ctx.fillText('📅 第 ' + (Game.dayCount || 1) + ' 天', 18, 28);
+    ctx.font = '12px "Microsoft YaHei"';
+    ctx.fillStyle = '#b89856';
+    ctx.fillText('🕐 ' + Math.floor(timeOfDay) + ':' + String(Math.floor((timeOfDay * 60) % 60)).padStart(2, '0') + ' ' + timeLabel, 18, 46);
+    ctx.fillStyle = '#f4d35e';
+    ctx.fillText('💰 ' + (Game.player.party.gold || 0) + ' 金币', 18, 66);
+    ctx.fillStyle = '#78d878';
+    ctx.fillText('👥 部队 ' + Game.player.party.members.filter(m => !m.isDead).length + '/' + Game.player.party.members.length, 130, 66);
+    // HP条
+    const hpPct = Math.max(0, Game.player.hp / Game.player.maxHp);
+    ctx.fillStyle = '#3a1e1e';
+    ctx.fillRect(18, 76, 260, 10);
+    ctx.fillStyle = '#d84848';
+    ctx.fillRect(18, 76, 260 * hpPct, 10);
+    ctx.strokeStyle = '#5a1e1e';
+    ctx.strokeRect(18, 76, 260, 10);
+    // HP文字
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 10px "Microsoft YaHei"';
+    ctx.textAlign = 'center';
+    ctx.fillText('HP ' + Math.floor(Game.player.hp) + ' / ' + Game.player.maxHp, 148, 84);
+    // 士气条
+    const moralePct = Game.player.party.morale / 100;
+    ctx.fillStyle = '#1e1e3a';
+    ctx.fillRect(18, 90, 260, 8);
+    ctx.fillStyle = moralePct > 0.5 ? '#5a8aaa' : (moralePct > 0.3 ? '#b89856' : '#aa3a3a');
+    ctx.fillRect(18, 90, 260 * moralePct, 8);
+    ctx.fillStyle = '#fff';
+    ctx.font = '9px "Microsoft YaHei"';
     ctx.textAlign = 'right';
-    ctx.fillText(Math.floor(Game.player.hp) + '/' + Game.player.maxHp, w - 10, 74);
+    ctx.fillText('士气 ' + Game.player.party.morale + '%', 270, 97);
+    // 部队战力
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#f4d35e';
+    ctx.font = 'bold 11px "Microsoft YaHei"';
+    ctx.fillText('⚔ ' + Game.player.party.power, 18, 113);
+    // 声望
+    ctx.fillStyle = '#b89856';
+    ctx.fillText('⭐ ' + Game.player.reputation, 80, 113);
+    // 等级
+    ctx.fillStyle = '#78d878';
+    ctx.fillText('Lv' + Game.player.level, 140, 113);
+    // 城镇信息（如果在某地）
+    if (this.currentSettlement) {
+      ctx.fillStyle = '#4abac8';
+      ctx.fillText('📍 ' + this.currentSettlement.name, 190, 113);
+    }
     ctx.textAlign = 'left';
   }
 
@@ -70,16 +114,19 @@ class UIManager {
 
   // 主菜单
   showMainMenu() {
+    const hasSaves = SaveSystem.hasAnySave();
+    const hasAutoSave = SaveSystem.hasAutoSave();
     const html = `
-      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:auto;background:rgba(15,15,30,0.9);padding:50px 80px;border:3px solid #8a7a3e;border-radius:6px;">
-        <h1 style="color:#f4d35e;font-size:48px;margin-bottom:12px;letter-spacing:8px;text-shadow:3px 3px 0 #3a2e1a;">铁骑风云</h1>
-        <p style="color:#b89856;margin-bottom:40px;letter-spacing:4px;">像素开放世界 · 骑马与砍杀</p>
+      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:auto;background:rgba(15,15,30,0.95);padding:50px 80px;border:3px solid #8a7a3e;border-radius:8px;box-shadow:0 0 60px rgba(0,0,0,0.8),inset 0 0 30px rgba(244,211,94,0.05);">
+        <h1 style="color:#f4d35e;font-size:48px;margin-bottom:12px;letter-spacing:8px;text-shadow:3px 3px 0 #3a2e1a,0 0 20px rgba(244,211,94,0.3);">铁骑风云</h1>
+        <p style="color:#b89856;margin-bottom:40px;letter-spacing:4px;font-size:14px;">像素开放世界 · 骑马与砍杀风格</p>
         <div style="display:flex;flex-direction:column;gap:12px;align-items:center;">
-          <button class="ui-btn" id="btn-new-game" style="padding:14px 50px;font-size:18px;">开 始 新 游 戏</button>
-          <button class="ui-btn" id="btn-continue" style="padding:14px 50px;font-size:18px;" disabled>继 续 游 戏</button>
-          <button class="ui-btn" id="btn-help" style="padding:10px 50px;font-size:14px;">游 戏 帮 助</button>
+          <button class="ui-btn primary" id="btn-new-game" style="padding:14px 60px;font-size:18px;min-width:260px;">开 始 新 游 戏</button>
+          <button class="ui-btn" id="btn-continue" style="padding:12px 60px;font-size:16px;min-width:260px;" ${hasSaves ? '' : 'disabled'}>继 续 游 戏${hasSaves ? '' : ' (无存档)'}</button>
+          <button class="ui-btn" id="btn-load" style="padding:12px 60px;font-size:16px;min-width:260px;" ${hasSaves ? '' : 'disabled'}>读 取 存 档</button>
+          <button class="ui-btn" id="btn-help" style="padding:10px 60px;font-size:14px;min-width:260px;">游 戏 帮 助</button>
         </div>
-        <p style="color:#6a6a7a;margin-top:30px;font-size:11px;">鼠标点击地图移动 · 点击定居点进入 · 1/2键暂停</p>
+        <p style="color:#6a6a7a;margin-top:30px;font-size:11px;">快捷键: F5 快速存档 · F9 快速读档 · ESC 关闭面板</p>
       </div>`;
     const panel = this.addPanel(html, { width: '100%', height: '100%', left: '0', top: '0' });
     panel.style.transform = 'none';
@@ -94,10 +141,97 @@ class UIManager {
       this.clearPanels();
       Game.newGame();
     };
+    const contBtn = document.getElementById('btn-continue');
+    if (hasSaves) contBtn.onclick = () => {
+      this.clearPanels();
+      // 加载最新的存档
+      const saves = SaveSystem.getAllSaveMeta();
+      const lastSlot = saves.findIndex(s => !s.empty);
+      if (lastSlot >= 0) SaveSystem.loadFromSlot(lastSlot);
+    };
+    const loadBtn = document.getElementById('btn-load');
+    if (hasSaves) loadBtn.onclick = () => this.showLoadPanel();
     document.getElementById('btn-help').onclick = () => {
       this.showHelpPanel();
     };
   }
+
+  // 显示读取存档面板
+  showLoadPanel() {
+    const saves = SaveSystem.getAllSaveMeta();
+    const hasAutoSave = SaveSystem.hasAutoSave();
+    let html = '<button class="ui-close" onclick="Game.ui.clearPanels();Game.ui.showMainMenu()">×</button>';
+    html += '<h2>读取存档</h2>';
+    html += '<div style="padding:15px;max-height:500px;overflow-y:auto;">';
+    // 自动存档
+    if (hasAutoSave) {
+      const autoData = JSON.parse(localStorage.getItem(SaveSystem.AUTOSAVE_KEY));
+      const date = new Date(autoData.savedAt).toLocaleString('zh-CN');
+      html += '<div class="save-slot" onclick="Game.ui.clearPanels();SaveSystem.loadAutoSave()" style="background:rgba(70,60,30,0.4);border:2px solid #b89856;padding:15px;margin-bottom:12px;cursor:pointer;border-radius:4px;">';
+      html += '<div style="color:#b89856;font-weight:bold;font-size:16px;">[自动存档] ' + autoData.location + '</div>';
+      html += '<div style="color:#8a8a98;font-size:12px;margin-top:4px;">' + date + '</div>';
+      html += '<div style="color:#d0d0d8;font-size:13px;margin-top:6px;">' + autoData.playerName + ' Lv' + autoData.playerLevel + ' · 💰' + autoData.gold + ' · 第' + autoData.dayCount + '天</div>';
+      html += '</div>';
+    }
+    // 3个手动存档
+    for (let i = 0; i < 3; i++) {
+      const save = saves[i];
+      if (save.empty) {
+        html += '<div class="save-slot" style="background:rgba(20,20,30,0.4);border:2px dashed #4a3e2a;padding:15px;margin-bottom:12px;border-radius:4px;color:#6a6a7a;">';
+        html += '<div style="font-size:14px;">槽位 ' + (i + 1) + ' - 空</div>';
+        html += '</div>';
+      } else {
+        const date = new Date(save.savedAt).toLocaleString('zh-CN');
+        html += '<div class="save-slot" style="background:rgba(40,50,70,0.4);border:2px solid #6a8aaa;padding:15px;margin-bottom:12px;cursor:pointer;border-radius:4px;" onmouseover="this.style.borderColor=\'#f4d35e\'" onmouseout="this.style.borderColor=\'#6a8aaa\'">';
+        html += '<div style="color:#f4d35e;font-weight:bold;font-size:16px;">[槽位 ' + (i + 1) + '] ' + (save.label || '存档') + '</div>';
+        html += '<div style="color:#8a8a98;font-size:12px;margin-top:4px;">' + date + '</div>';
+        html += '<div style="color:#d0d0d8;font-size:13px;margin-top:6px;">' + (save.playerName || '?') + ' Lv' + (save.playerLevel || 1) + ' · 💰' + (save.gold || 0) + ' · 第' + (save.dayCount || 1) + '天 · ' + (save.location || '大地图') + '</div>';
+        html += '<div style="display:flex;gap:8px;margin-top:10px;">';
+        html += '<button class="ui-btn" onclick="event.stopPropagation();Game.ui.clearPanels();SaveSystem.loadFromSlot(' + i + ')" style="padding:6px 16px;font-size:12px;">读取</button>';
+        html += '<button class="ui-btn danger" onclick="event.stopPropagation();Game.ui.confirmDeleteSlot(' + i + ')" style="padding:6px 16px;font-size:12px;">删除</button>';
+        html += '</div>';
+        html += '</div>';
+      }
+    }
+    html += '</div>';
+    this.addPanel(html, { width: '540px' });
+  }
+
+  // 确认删除存档
+  confirmDeleteSlot(slotIndex) {
+    if (confirm('确定要删除槽位 ' + (slotIndex + 1) + ' 的存档吗？')) {
+      SaveSystem.deleteSlot(slotIndex);
+      this.clearPanels();
+      this.showLoadPanel();
+    }
+  }
+
+  // 显示保存游戏面板（在游戏中）
+  showSavePanel() {
+    const saves = SaveSystem.getAllSaveMeta();
+    let html = '<button class="ui-close" onclick="Game.ui.clearPanels()">×</button>';
+    html += '<h2>保存游戏</h2>';
+    html += '<div style="padding:15px;">';
+    html += '<p style="color:#b89856;font-size:12px;margin-bottom:12px;">选择要保存到的槽位 (F5 快速存档到槽位 1)</p>';
+    for (let i = 0; i < 3; i++) {
+      const save = saves[i];
+      if (save.empty) {
+        html += '<div class="save-slot" onclick="SaveSystem.saveToSlot(' + i + ',\'玩家存档\');Game.ui.clearPanels();Game.ui.showSavePanel();" style="background:rgba(20,20,30,0.4);border:2px dashed #4a3e2a;padding:15px;margin-bottom:12px;cursor:pointer;border-radius:4px;">';
+        html += '<div style="color:#78d878;font-size:14px;font-weight:bold;">+ 槽位 ' + (i + 1) + ' - 空（点击保存）</div>';
+        html += '</div>';
+      } else {
+        const date = new Date(save.savedAt).toLocaleString('zh-CN');
+        html += '<div class="save-slot" onclick="if(confirm(\'覆盖当前存档？\')){SaveSystem.saveToSlot(' + i + ',\'玩家存档\');Game.ui.clearPanels();Game.ui.showSavePanel();}" style="background:rgba(40,50,70,0.4);border:2px solid #6a8aaa;padding:15px;margin-bottom:12px;cursor:pointer;border-radius:4px;">';
+        html += '<div style="color:#f4d35e;font-weight:bold;font-size:16px;">[槽位 ' + (i + 1) + '] ' + (save.label || '存档') + '</div>';
+        html += '<div style="color:#8a8a98;font-size:12px;margin-top:4px;">' + date + '</div>';
+        html += '<div style="color:#d0d0d8;font-size:13px;margin-top:6px;">第' + (save.dayCount || 1) + '天 · ' + (save.playerName || '?') + ' Lv' + (save.playerLevel || 1) + ' · ' + (save.location || '大地图') + '</div>';
+        html += '</div>';
+      }
+    }
+    html += '</div>';
+    this.addPanel(html, { width: '500px' });
+  }
+
 
   showHelpPanel() {
     const html = `
@@ -583,161 +717,395 @@ window.addEventListener('load', () => {
 
 // 键盘事件
 document.addEventListener('keydown', (e) => {
+  // 战斗中不响应存档相关快捷键（避免BUG）
+  const inBattle = StateManager.current === GameState.BATTLE;
   if (e.key === 'Escape') {
-    if (StateManager.current === GameState.BATTLE) {
-      // 战斗中无法退出
+    if (inBattle) {
       return;
     }
     Game.ui && Game.ui.clearPanels();
+    return;
   }
   if (e.key === '1' && Game.battleMap) {
     Game.battleMap.battleSpeed = 1;
+    return;
   }
   if (e.key === '2' && Game.battleMap) {
     Game.battleMap.battleSpeed = 2;
+    return;
   }
   if (e.key === '3' && Game.battleMap) {
     Game.battleMap.battleSpeed = 3;
+    return;
   }
-  if (e.key.toLowerCase() === 'c' && Game.player) {
-    // 打开角色面板
+  // 存档相关快捷键
+  if (e.key === 'F5' && Game.player && !inBattle) {
+    e.preventDefault();
+    SaveSystem.saveToSlot(0, '快速存档');
+    return;
+  }
+  if (e.key === 'F9' && Game.player && !inBattle) {
+    e.preventDefault();
+    SaveSystem.loadFromSlot(0);
+    return;
+  }
+  if (e.key === 'F6' && Game.player && !inBattle) {
+    e.preventDefault();
+    SaveSystem.saveToSlot(1, '存档2');
+    return;
+  }
+  if (e.key === 'F7' && Game.player && !inBattle) {
+    e.preventDefault();
+    SaveSystem.saveToSlot(2, '存档3');
+    return;
+  }
+  // 仅在游戏世界中响应
+  if (!Game.player || inBattle) return;
+  if (e.key.toLowerCase() === 'c') {
     showCharacterPanel();
-  }
-  if (e.key.toLowerCase() === 'i' && Game.player) {
-    // 打开背包
+  } else if (e.key.toLowerCase() === 'i') {
     showInventoryPanel();
-  }
-  if (e.key.toLowerCase() === 'p' && Game.player) {
-    // 打开部队面板
+  } else if (e.key.toLowerCase() === 'p') {
     showPartyPanel();
-  }
-  if (e.key.toLowerCase() === 'q' && Game.world && Game.world.questSystem) {
-    // 打开任务面板
-    showQuestsPanel();
+  } else if (e.key.toLowerCase() === 'q') {
+    if (Game.world && Game.world.questSystem) showQuestsPanel();
+  } else if (e.key.toLowerCase() === 'm') {
+    // 地图：保存游戏
+    Game.ui.showSavePanel();
+  } else if (e.key.toLowerCase() === 'k') {
+    // K 键: 在世界中显示完整键盘提示
+    showControlsPanel();
   }
 });
 
-// 角色面板
+// 角色面板 - 增强版
 function showCharacterPanel() {
   Game.ui.clearPanels();
   const p = Game.player;
-  const html = `
-    <button class="ui-close" onclick="Game.ui.clearPanels()">×</button>
-    <h2>角色信息</h2>
-    <div style="padding:15px;">
-      <div style="background:rgba(0,0,0,0.4);padding:12px;margin-bottom:10px;">
-        <div style="display:flex;justify-content:space-between;padding:4px 0;"><span style="color:#b89856;">姓名</span><span>${p.name}</span></div>
-        <div style="display:flex;justify-content:space-between;padding:4px 0;"><span style="color:#b89856;">等级</span><span>Lv${p.level} (${p.exp}/${p.expNeeded})</span></div>
-        <div style="display:flex;justify-content:space-between;padding:4px 0;"><span style="color:#b89856;">生命</span><span>${p.hp}/${p.maxHp}</span></div>
-        <div style="display:flex;justify-content:space-between;padding:4px 0;"><span style="color:#b89856;">力量</span><span>${p.strength}</span></div>
-        <div style="display:flex;justify-content:space-between;padding:4px 0;"><span style="color:#b89856;">敏捷</span><span>${p.agility}</span></div>
-        <div style="display:flex;justify-content:space-between;padding:4px 0;"><span style="color:#b89856;">体力</span><span>${p.vitality}</span></div>
-        <div style="display:flex;justify-content:space-between;padding:4px 0;"><span style="color:#b89856;">智力</span><span>${p.intelligence}</span></div>
-        <div style="display:flex;justify-content:space-between;padding:4px 0;"><span style="color:#b89856;">声望</span><span>${p.reputation}</span></div>
-        <div style="display:flex;justify-content:space-between;padding:4px 0;"><span style="color:#b89856;">金币</span><span>💰 ${p.party.gold}</span></div>
-        <div style="display:flex;justify-content:space-between;padding:4px 0;"><span style="color:#b89856;">总伤害</span><span style="color:#f86868;">${p.damage}</span></div>
-        <div style="display:flex;justify-content:space-between;padding:4px 0;"><span style="color:#b89856;">总防御</span><span style="color:#78d878;">${p.defense}</span></div>
-      </div>
-      <h3 style="color:#f4d35e;margin-bottom:8px;">当前装备</h3>
-      <div style="background:rgba(0,0,0,0.4);padding:12px;">
-        <div style="padding:4px 0;">⚔️ 武器：${p.equipment.weapon ? p.equipment.weapon.name : '无'}</div>
-        <div style="padding:4px 0;">🛡️ 护甲：${p.equipment.armor ? p.equipment.armor.name : '无'}</div>
-        <div style="padding:4px 0;">⛑️ 头盔：${p.equipment.helmet ? p.equipment.helmet.name : '无'}</div>
-        <div style="padding:4px 0;">🛡️ 盾：${p.equipment.shield ? p.equipment.shield.name : '无'}</div>
-      </div>
-    </div>
-  `;
-  Game.ui.addPanel(html, { width: '420px' });
+  // 角色肖像
+  const portraitHtml = '<canvas id="char-portrait" width="80" height="80" style="image-rendering:pixelated;background:#222;"></canvas>';
+  // 经验进度
+  const expPct = Math.floor(p.exp / p.expNeeded * 100);
+  // 装备槽
+  const eqSlots = [
+    { key: 'helmet', label: '头盔', icon: '⛑️' },
+    { key: 'armor', label: '护甲', icon: '🛡️' },
+    { key: 'weapon', label: '武器', icon: '⚔️' },
+    { key: 'shield', label: '盾牌', icon: '🛡️' },
+    { key: 'boots', label: '鞋子', icon: '👢', empty: true },
+    { key: 'ring', label: '饰品', icon: '💍', empty: true }
+  ];
+  let equipHtml = '';
+  eqSlots.forEach(s => {
+    const it = p.equipment[s.key];
+    if (it) {
+      equipHtml += '<div class="equip-slot" onclick="Game.player.unequip(\'' + s.key + '\');setTimeout(showCharacterPanel,100)" title="点击卸下">' +
+        '<div class="icon">' + s.icon + '</div>' +
+        '<div class="name" style="color:#f4d35e;">' + it.name + '</div>' +
+        '<div class="label">' + s.label + '</div></div>';
+    } else {
+      equipHtml += '<div class="equip-slot empty">' +
+        '<div class="icon" style="opacity:0.3;">' + s.icon + '</div>' +
+        '<div class="label">' + s.label + '</div></div>';
+    }
+  });
+  // 装备属性汇总
+  const equipStats = [];
+  if (p.equipment.weapon) equipStats.push({ name: '武器伤害', val: '+' + p.equipment.weapon.damage, color: '#f86868' });
+  if (p.equipment.armor) equipStats.push({ name: '护甲防御', val: '+' + p.equipment.armor.defense, color: '#78d878' });
+  if (p.equipment.helmet) equipStats.push({ name: '头盔防御', val: '+' + p.equipment.helmet.defense, color: '#78d878' });
+  if (p.equipment.shield) equipStats.push({ name: '盾牌防御', val: '+' + p.equipment.shield.defense, color: '#78d878' });
+  const faction = Game.world.getFaction(p.factionId);
+  const html =
+    '<button class="ui-close" onclick="Game.ui.clearPanels()">×</button>' +
+    '<h2>角色信息</h2>' +
+    '<div style="padding:15px;">' +
+    '<div class="character-card">' +
+    '<div class="character-portrait">' + portraitHtml + '</div>' +
+    '<div class="character-info">' +
+    '<div class="character-name">' + p.name + ' <span class="badge gold">Lv' + p.level + '</span></div>' +
+    '<div class="character-title">' + p.title + (faction ? ' · ' + faction.name : ' · 流浪者') + '</div>' +
+    '<div class="progress-bar"><div class="fill" style="width:' + expPct + '%;"></div></div>' +
+    '<div style="font-size:10px;color:#b89856;text-align:right;">EXP: ' + p.exp + ' / ' + p.expNeeded + ' (' + expPct + '%)</div>' +
+    '</div></div>' +
+    '<div class="stat-grid">' +
+    '<div class="stat-cell"><div class="value" style="color:#f86868;">' + Math.floor(p.hp) + '</div><div class="label">❤️ 生命</div></div>' +
+    '<div class="stat-cell"><div class="value" style="color:#78d878;">' + p.defense + '</div><div class="label">🛡 防御</div></div>' +
+    '<div class="stat-cell"><div class="value" style="color:#f4d35e;">' + p.damage + '</div><div class="label">⚔️ 攻击</div></div>' +
+    '<div class="stat-cell"><div class="value" style="color:#b89856;">' + p.reputation + '</div><div class="label">⭐ 声望</div></div>' +
+    '</div>' +
+    '<div class="ornament">属 性</div>' +
+    '<div style="background:rgba(0,0,0,0.3);padding:12px;border-radius:4px;">' +
+    '<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:13px;"><span style="color:#b89856;">💪 力量</span><span style="color:#f4d35e;">' + p.strength + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:13px;"><span style="color:#b89856;">🏃 敏捷</span><span style="color:#f4d35e;">' + p.agility + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:13px;"><span style="color:#b89856;">🛡 体力</span><span style="color:#f4d35e;">' + p.vitality + '</span></div>' +
+    '<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:13px;"><span style="color:#b89856;">🧠 智力</span><span style="color:#f4d35e;">' + p.intelligence + '</span></div>' +
+    '</div>' +
+    '<div class="ornament">装 备</div>' +
+    '<div class="equipment-grid">' + equipHtml + '</div>' +
+    (equipStats.length > 0 ? '<div class="divider"></div><div style="font-size:12px;background:rgba(0,0,0,0.3);padding:8px;border-radius:4px;">' +
+      equipStats.map(s => '<span style="margin-right:10px;">' + s.name + ':<span style="color:' + s.color + ';font-weight:bold;">' + s.val + '</span></span>').join('') +
+      '</div>' : '') +
+    '<div class="divider"></div>' +
+    '<div style="display:flex;justify-content:space-between;font-size:12px;">' +
+    '<div style="color:#b89856;">💰 金币: <span style="color:#f4d35e;">' + p.party.gold + '</span></div>' +
+    '<div style="color:#b89856;">👥 部队: <span style="color:#78d878;">' + p.party.members.filter(m => !m.isDead).length + '/' + p.party.members.length + '</span></div>' +
+    '<div style="color:#b89856;">📅 士气: <span style="color:' + (p.party.morale > 50 ? '#78d878' : '#f86868') + ';">' + p.party.morale + '%</span></div>' +
+    '</div>' +
+    '</div>';
+  Game.ui.addPanel(html, { width: '520px' });
+  // 绘制角色肖像
+  setTimeout(() => drawCharacterPortrait(), 50);
 }
 
-// 背包面板
+function drawCharacterPortrait() {
+  const canvas = document.getElementById('char-portrait');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  const p = Game.player;
+  // 背景
+  const grad = ctx.createLinearGradient(0, 0, 80, 80);
+  grad.addColorStop(0, '#3a2e1a');
+  grad.addColorStop(1, '#1a1a2e');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 80, 80);
+  // 装饰边框
+  ctx.strokeStyle = '#8a7a3e';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(2, 2, 76, 76);
+  // 绘制角色 - 大一些
+  const eq = p.equipment;
+  // 披风（英雄标志）
+  ctx.fillStyle = '#f4d35e';
+  ctx.fillRect(30, 25, 20, 35);
+  ctx.fillStyle = '#b89856';
+  ctx.fillRect(30, 25, 4, 35);
+  ctx.fillRect(46, 25, 4, 35);
+  // 身体颜色根据装备变化
+  let bodyColor = '#6a4aaa';
+  if (eq.armor) {
+    if (eq.armor.level >= 5) bodyColor = '#aaa';  // 板甲
+    else if (eq.armor.level >= 4) bodyColor = '#888';  // 链甲
+    else if (eq.armor.level >= 3) bodyColor = '#6a5a3a';  // 锁甲
+    else if (eq.armor.level >= 2) bodyColor = '#5a3a2a';  // 皮甲
+    else bodyColor = '#4a4a5a';  // 布甲
+  }
+  Utils.drawPixelHuman(ctx, 40, 50, 2.4, bodyColor, '#fcb', 'sword');
+  // 头盔
+  if (eq.helmet) {
+    ctx.fillStyle = '#888';
+    ctx.fillRect(34, 25, 12, 6);
+  }
+  // 等级徽章
+  ctx.fillStyle = '#f4d35e';
+  ctx.font = 'bold 9px "Microsoft YaHei"';
+  ctx.textAlign = 'center';
+  ctx.fillText('Lv' + p.level, 40, 75);
+  ctx.textAlign = 'left';
+}
+
+// 背包面板 - 增强版
 function showInventoryPanel() {
   Game.ui.clearPanels();
   const inv = Game.player.party.inventory;
-  let html = `
-    <button class="ui-close" onclick="Game.ui.clearPanels()">×</button>
-    <h2>背包</h2>
-    <div style="padding:15px;">
-      <div style="color:#b89856;margin-bottom:10px;">负重：${Game.player.party.currentLoad}/${Game.player.party.wagonCapacity}</div>
-      <div style="background:rgba(0,0,0,0.4);padding:12px;max-height:400px;overflow-y:auto;">
-  `;
-  if (inv.length === 0) {
-    html += `<p style="color:#6a6a7a;text-align:center;padding:20px;">背包空空如也</p>`;
-  } else {
-    inv.forEach(entry => {
-      const item = entry.item;
-      const isEquippable = ['weapon', 'armor', 'helmet', 'shield'].includes(item.type);
-      const isConsumable = item.type === ItemType.CONSUMABLE;
-      html += `
-        <div class="ui-list-item" style="padding:8px;border-bottom:1px solid #4a3e2a;display:flex;justify-content:space-between;align-items:center;">
-          <div>
-          <div style="color:#f4d35e;">${item.name} <small style="color:#b89856;">x${entry.quantity}</small></div>
-          <div style="font-size:11px;color:#a0a0a8;">${item.desc || ''}</div>
-          </div>
-          <div style="display:flex;gap:6px;">
-  ${isEquippable ? `<button class="ui-btn" onclick="Game.player.equip(Game.player.party.inventory[${inv.indexOf(entry)}].item);setTimeout(showInventoryPanel,100" style="padding:4px 8px;font-size:11px;">装备</button>` : ''}
-  ${isConsumable ? `<button class="ui-btn" onclick="Game.player.party.useConsumable('${item.id}');setTimeout(showInventoryPanel,100)" style="padding:4px 8px;font-size:11px;">使用</button>` : ''}
-          </div>
-        </div>`;
-    });
+  const load = Game.player.party.currentLoad;
+  const cap = Game.player.party.wagonCapacity;
+  const loadPct = Math.floor(load / cap * 100);
+  // 按类型分类
+  const equipItems = inv.filter(e => ['weapon', 'armor', 'helmet', 'shield'].includes(e.item.type));
+  const consumables = inv.filter(e => e.item.type === 'consumable');
+  const trades = inv.filter(e => e.item.type === 'trade_good' || e.item.type === 'material');
+  const itemTypeIcon = {
+    weapon: '⚔️', armor: '🛡️', helmet: '⛑️', shield: '🛡️',
+    consumable: '🧪', trade_good: '📦', material: '🪨'
+  };
+  const itemTypeColor = {
+    weapon: '#f86868', armor: '#78d878', helmet: '#88ddff', shield: '#88ddff',
+    consumable: '#d878d8', trade_good: '#b89856', material: '#aaaaaa'
+  };
+  const renderItem = (e, idx) => {
+    const item = e.item;
+    const isEquippable = ['weapon', 'armor', 'helmet', 'shield'].includes(item.type);
+    const isConsumable = item.type === 'consumable';
+    return '<div class="card">' +
+      '<div class="card-header">' +
+      '<div class="card-title" style="color:' + itemTypeColor[item.type] + ';">' + itemTypeIcon[item.type] + ' ' + item.name + ' <span class="tag">x' + e.quantity + '</span></div>' +
+      (isEquippable ? '<button class="ui-btn" onclick="Game.player.equip(Game.player.party.inventory[' + inv.indexOf(e) + '].item);setTimeout(showInventoryPanel,100)" style="padding:4px 10px;font-size:11px;">装备</button>' : '') +
+      (isConsumable ? '<button class="ui-btn" onclick="Game.player.party.useConsumable(\'' + item.id + '\');setTimeout(showInventoryPanel,100)" style="padding:4px 10px;font-size:11px;">使用</button>' : '') +
+      '</div>' +
+      '<div class="card-content" style="font-size:12px;color:#a0a0a8;">' + (item.desc || '') +
+      (item.damage ? ' | 攻:' + item.damage : '') +
+      (item.defense ? ' | 防:' + item.defense : '') +
+      (item.heal ? ' | 治:' + item.heal : '') +
+      (item.price ? ' | 💰' + item.price : '') +
+      '</div></div>';
+  };
+  let contentHtml = '';
+  if (equipItems.length > 0) {
+    contentHtml += '<div class="ornament">⚔ 装备</div>' + equipItems.map(renderItem).join('');
   }
-  html += `</div></div>`;
-  Game.ui.addPanel(html, { width: '480px' });
+  if (consumables.length > 0) {
+    contentHtml += '<div class="ornament">🧪 消耗品</div>' + consumables.map(renderItem).join('');
+  }
+  if (trades.length > 0) {
+    contentHtml += '<div class="ornament">📦 货物 / 素材</div>' + trades.map(renderItem).join('');
+  }
+  if (inv.length === 0) {
+    contentHtml = '<div style="padding:40px;text-align:center;color:#6a6a7a;"><div style="font-size:48px;">📦</div><div>背包空空如也</div><div style="font-size:11px;margin-top:8px;">完成交易或击杀敌人来获得物品</div></div>';
+  }
+  const html =
+    '<button class="ui-close" onclick="Game.ui.clearPanels()">×</button>' +
+    '<h2>背包</h2>' +
+    '<div style="padding:15px;">' +
+    '<div class="stat-grid">' +
+    '<div class="stat-cell"><div class="value" style="color:#f4d35e;">' + inv.length + '</div><div class="label">📦 物品</div></div>' +
+    '<div class="stat-cell"><div class="value" style="color:#b89856;">' + load + '/' + cap + '</div><div class="label">🐴 马车</div></div>' +
+    '</div>' +
+    '<div class="progress-bar"><div class="fill" style="width:' + loadPct + '%;"></div></div>' +
+    '<div style="max-height:380px;overflow-y:auto;">' + contentHtml + '</div>' +
+    '</div>';
+  Game.ui.addPanel(html, { width: '520px' });
 }
 
-// 部队面板
+// 部队面板 - 增强版
 function showPartyPanel() {
   Game.ui.clearPanels();
   const members = Game.player.party.members;
-  let html = `
-    <button class="ui-close" onclick="Game.ui.clearPanels()">×</button>
-    <h2>部队</h2>
-    <div style="padding:15px;">
-      <div style="color:#b89856;margin-bottom:10px;">总数：${members.length}/${Game.player.party.maxSize} ｜ 战力：${Game.player.party.power}</div>
-      <div style="background:rgba(0,0,0,0.4);padding:12px;max-height:400px;overflow-y:auto;">
-  `;
-  members.forEach((m, idx) => {
-    html += `
-      <div class="ui-list-item" style="padding:8px;border-bottom:1px solid #4a3e2a;display:flex;justify-content:space-between;align-items:center;">
-        <div>
-          <div style="color:#f4d35e;">⚔️ ${m.name} <small style="color:#b89856;">Lv${m.level}</small></div>
-          <div style="font-size:11px;color:#a0a0a8;">HP:${m.hp}/${m.maxHp} 攻:${m.baseDamage} 防:${m.baseDefense}</div>
-        </div>
-        ${m.isPlayer ? '' : `<button class="ui-btn" onclick="Game.player.party.removeMember(${idx});Game.player.party.recalcWage();setTimeout(showPartyPanel,100)" style="padding:4px 8px;font-size:11px;">解雇</button>`}
-      </div>`;
-  });
-  html += `</div></div>`;
-  Game.ui.addPanel(html, { width: '480px' });
+  const aliveCount = members.filter(m => !m.isDead).length;
+  const totalPower = Game.player.party.power;
+  const size = Game.player.party.members.length;
+  const maxSize = Game.player.party.maxSize;
+  const totalHp = members.reduce((s, m) => s + m.hp, 0);
+  const totalMaxHp = members.reduce((s, m) => s + m.maxHp, 0);
+  // 分类
+  const swordsmen = members.filter(m => m.typeId && m.typeId.includes('sword'));
+  const archers = members.filter(m => m.typeId && m.typeId.includes('archer') || m.typeId && m.typeId.includes('bow'));
+  const spearmen = members.filter(m => m.typeId && m.typeId.includes('spear'));
+  const knights = members.filter(m => m.typeId && m.typeId.includes('knight'));
+  const playerUnit = members.find(m => m.isPlayer);
+  const otherUnits = members.filter(m => !m.isPlayer);
+  const renderTroop = (m, idx) => {
+    const hpPct = Math.floor(m.hp / m.maxHp * 100);
+    const hpColor = hpPct > 60 ? '#78d878' : (hpPct > 30 ? '#f4d35e' : '#f86868');
+    return '<div class="troop-card">' +
+      '<div class="troop-portrait" style="background:' + (m.isPlayer ? 'rgba(244,211,94,0.2)' : 'rgba(0,0,0,0.5)') + ';">' +
+      '<canvas id="troop-' + idx + '" width="50" height="50" style="image-rendering:pixelated;"></canvas>' +
+      '</div>' +
+      '<div class="troop-info">' +
+      '<div class="troop-name">' + (m.isPlayer ? '👑 ' : '') + m.name + ' <span class="tag green">Lv' + m.level + '</span></div>' +
+      '<div class="troop-stats">⚔ ' + m.baseDamage + ' | 🛡 ' + m.baseDefense + ' | HP: <span style="color:' + hpColor + ';">' + Math.floor(m.hp) + '/' + m.maxHp + '</span></div>' +
+      '<div class="troop-hp-bar"><div class="troop-hp-fill" style="width:' + hpPct + '%;"></div></div>' +
+      '</div>' +
+      (m.isPlayer ? '' : '<button class="ui-btn" onclick="Game.player.party.removeMember(' + members.indexOf(m) + ');Game.player.party.recalcWage();setTimeout(showPartyPanel,100)" style="padding:4px 8px;font-size:11px;">解雇</button>') +
+      '</div>';
+  };
+  const html =
+    '<button class="ui-close" onclick="Game.ui.clearPanels()">×</button>' +
+    '<h2>部队管理</h2>' +
+    '<div style="padding:15px;">' +
+    '<div class="stat-grid">' +
+    '<div class="stat-cell"><div class="value" style="color:#78d878;">' + aliveCount + '/' + size + '</div><div class="label">👥 人数</div></div>' +
+    '<div class="stat-cell"><div class="value" style="color:#f4d35e;">' + totalPower + '</div><div class="label">⚔ 战力</div></div>' +
+    '<div class="stat-cell"><div class="value" style="color:#f86868;">' + Game.player.party.weeklyWage + '</div><div class="label">💰 周薪</div></div>' +
+    '<div class="stat-cell"><div class="value" style="color:' + (Game.player.party.morale > 50 ? '#78d878' : '#f86868') + ';">' + Game.player.party.morale + '%</div><div class="label">📈 士气</div></div>' +
+    '</div>' +
+    '<div class="ornament">部 队 编 成</div>' +
+    '<div style="max-height:380px;overflow-y:auto;">' +
+    (playerUnit ? renderTroop(playerUnit, 'player') : '') +
+    otherUnits.map((m, i) => renderTroop(m, 'unit' + i)).join('') +
+    '</div>' +
+    '<div class="divider"></div>' +
+    '<div style="text-align:center;color:#a0a0a8;font-size:12px;">点击士兵卡片可解雇 (主角不可解雇)</div>' +
+    '</div>';
+  Game.ui.addPanel(html, { width: '540px' });
+  // 绘制每个士兵的肖像
+  setTimeout(() => {
+    members.forEach((m, i) => {
+      const canvas = document.getElementById('troop-' + (m.isPlayer ? 'player' : 'unit' + (i - (playerUnit ? 1 : 0))));
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      ctx.fillStyle = m.isPlayer ? '#3a2e1a' : '#1a1a2e';
+      ctx.fillRect(0, 0, 50, 50);
+      // 主角特殊颜色
+      if (m.isPlayer) {
+        ctx.fillStyle = '#f4d35e';
+        ctx.fillRect(15, 15, 20, 25);
+        Utils.drawPixelHuman(ctx, 25, 30, 1.4, '#6a4aaa', '#fcb', 'sword');
+      } else {
+        // 士兵 - 根据类型颜色
+        const isArcher = m.typeId && (m.typeId.includes('bow') || m.typeId.includes('archer'));
+        const isSpear = m.typeId && m.typeId.includes('spear');
+        const weapon = isArcher ? 'bow' : (isSpear ? 'spear' : 'sword');
+        // 友军颜色
+        const bodyColor = m.level >= 6 ? '#8a6aaa' : (m.level >= 4 ? '#5a8aaa' : '#5a5a7a');
+        Utils.drawPixelHuman(ctx, 25, 30, 1.4, bodyColor, '#fcb', weapon);
+      }
+    });
+  }, 50);
 }
 
-// 任务面板
+// 任务面板 - 增强版
 function showQuestsPanel() {
   Game.ui.clearPanels();
   const qs = Game.world.questSystem;
-  let html = `
-    <button class="ui-close" onclick="Game.ui.clearPanels()">×</button>
-    <h2>任务列表</h2>
-    <div style="padding:15px;max-height:450px;overflow-y:auto;">
-      <h3 style="color:#f4d35e;margin-bottom:8px;">进行中</h3>
-  `;
+  let html = '<button class="ui-close" onclick="Game.ui.clearPanels()">×</button>';
+  html += '<h2>任务日志</h2>';
+  html += '<div style="padding:15px;">';
+  // 标签页
+  html += '<div class="tabs">' +
+    '<div class="tab active" onclick="Game.ui.clearPanels();showQuestsPanel()">进行中 (' + qs.activeQuests.length + ')</div>' +
+    '<div class="tab" onclick="Game.ui.clearPanels();showCompletedQuests()">已完成 (' + qs.completedQuests.length + ')</div>' +
+    '</div>';
   if (qs.activeQuests.length === 0) {
-    html += `<p style="color:#6a6a7a;padding:10px;">暂无任务</p>`;
+    html += '<div style="padding:40px;text-align:center;color:#6a6a7a;"><div style="font-size:48px;">📜</div><div>暂无进行中的任务</div><div style="font-size:11px;margin-top:8px;">访问城镇可接取新任务</div></div>';
   } else {
     qs.activeQuests.forEach(q => {
-      html += `
-        <div class="quest-item active" style="margin-bottom:10px;">
-          <div style="color:#f4d35e;font-weight:bold;">📜 ${q.title}</div>
-          <div style="font-size:12px;color:#c0c0c8;margin:4px 0;">${q.desc}</div>
-          <div style="font-size:11px;color:#78d878;">进度：${q.progress}/${q.target.count || q.target.qty || '-'} ｜ 奖励:💰${q.rewardGold} 剩余:${q.timeRemaining}天</div>
-        </div>`;
+      const target = q.target.count || q.target.qty || 1;
+      const pct = Math.floor(q.progress / target * 100);
+      const typeLabel = { kill: '⚔️ 击杀', deliver: '📦 运送', collect: '🪵 收集', bounty: '💰 赏金' }[q.type] || '任务';
+      const timeColor = q.timeRemaining < 5 ? '#f86868' : '#b89856';
+      html += '<div class="card">' +
+        '<div class="card-header">' +
+        '<div class="card-title">📜 ' + q.title + '</div>' +
+        '<span class="tag">' + typeLabel + '</span>' +
+        '</div>' +
+        '<div class="card-content" style="font-size:12px;">' + q.desc + '</div>' +
+        '<div class="progress-bar" style="margin-top:8px;"><div class="fill" style="width:' + pct + '%;"></div></div>' +
+        '<div style="display:flex;justify-content:space-between;font-size:11px;margin-top:6px;">' +
+        '<span style="color:#78d878;">进度: ' + q.progress + '/' + target + ' (' + pct + '%)</span>' +
+        '<span style="color:' + timeColor + ';">⏰ 剩余: ' + q.timeRemaining + '天</span>' +
+        '</div>' +
+        '<div style="font-size:11px;margin-top:4px;">奖励: <span style="color:#f4d35e;">💰' + q.rewardGold + '金币</span></div>' +
+        '</div>';
     });
   }
-  html += `<hr style="border:1px dashed #4a3e2a;margin:15px 0;"><h3 style="color:#f4d35e;margin-bottom:8px;">已完成 (${qs.completedQuests.length})</h3>`;
-  qs.completedQuests.slice(-10).reverse().forEach(q => {
-    html += `<div class="quest-item completed" style="margin-bottom:8px;opacity:0.7;"><div style="color:#8a8a98;">✓ ${q.title}</div></div>`;
-  });
-  html += `</div>`;
-  Game.ui.addPanel(html, { width: '480px' });
+  html += '</div>';
+  Game.ui.addPanel(html, { width: '540px' });
+}
+
+function showCompletedQuests() {
+  Game.ui.clearPanels();
+  const qs = Game.world.questSystem;
+  let html = '<button class="ui-close" onclick="Game.ui.clearPanels();showQuestsPanel()">×</button>';
+  html += '<h2>任务日志</h2>';
+  html += '<div style="padding:15px;">';
+  html += '<div class="tabs">' +
+    '<div class="tab" onclick="Game.ui.clearPanels();showQuestsPanel()">进行中 (' + qs.activeQuests.length + ')</div>' +
+    '<div class="tab active">已完成 (' + qs.completedQuests.length + ')</div>' +
+    '</div>';
+  if (qs.completedQuests.length === 0) {
+    html += '<div style="padding:40px;text-align:center;color:#6a6a7a;">暂无已完成任务</div>';
+  } else {
+    qs.completedQuests.slice(-15).reverse().forEach(q => {
+      html += '<div class="card" style="opacity:0.6;border-color:#4a4a2a;">' +
+        '<div class="card-title" style="color:#8a8a98;">✓ ' + q.title + ' <span class="tag green">+💰' + q.rewardGold + '</span></div>' +
+        '</div>';
+    });
+  }
+  html += '</div>';
+  Game.ui.addPanel(html, { width: '540px' });
 }
 
 // 鼠标点击处理
@@ -772,3 +1140,66 @@ document.addEventListener('DOMContentLoaded', () => {
     }, { passive: false });
   }
 });
+
+// 控制按键提示面板
+function showControlsPanel() {
+  Game.ui.clearPanels();
+  const html = '<button class="ui-close" onclick="Game.ui.clearPanels()">×</button>' +
+    '<h2>操作指南</h2>' +
+    '<div style="padding:20px;line-height:2;">' +
+    '<h3 style="color:#f4d35e;margin-bottom:8px;">📜 快捷键</h3>' +
+    '<div style="background:rgba(0,0,0,0.3);padding:12px;border-radius:4px;">' +
+    '<div><span style="color:#b89856;">F5</span> - 快速存档 (槽位1)</div>' +
+    '<div><span style="color:#b89856;">F6</span> - 存档到槽位2</div>' +
+    '<div><span style="color:#b89856;">F7</span> - 存档到槽位3</div>' +
+    '<div><span style="color:#b89856;">F9</span> - 快速读档 (槽位1)</div>' +
+    '<div><span style="color:#b89856;">ESC</span> - 关闭当前面板</div>' +
+    '</div>' +
+    '<h3 style="color:#f4d35e;margin:16px 0 8px 0;">⚔️ 角色界面</h3>' +
+    '<div style="background:rgba(0,0,0,0.3);padding:12px;border-radius:4px;">' +
+    '<div><span style="color:#b89856;">C</span> - 角色信息</div>' +
+    '<div><span style="color:#b89856;">I</span> - 背包</div>' +
+    '<div><span style="color:#b89856;">P</span> - 部队管理</div>' +
+    '<div><span style="color:#b89856;">Q</span> - 任务列表</div>' +
+    '<div><span style="color:#b89856;">M</span> - 保存游戏</div>' +
+    '</div>' +
+    '<h3 style="color:#f4d35e;margin:16px 0 8px 0;">🎮 战斗中</h3>' +
+    '<div style="background:rgba(0,0,0,0.3);padding:12px;border-radius:4px;">' +
+    '<div><span style="color:#b89856;">1 / 2 / 3</span> - 调整战斗速度</div>' +
+    '</div>' +
+    '</div>';
+  Game.ui.addPanel(html, { width: '420px' });
+}
+
+// 创建游戏内右侧快速操作栏（DOM 按钮）
+function showQuickActions() {
+  let toolbar = document.getElementById('quick-actions');
+  if (toolbar) return;
+  const uilayer = document.getElementById('ui-layer');
+  toolbar = document.createElement('div');
+  toolbar.id = 'quick-actions';
+  toolbar.style.cssText = 'position:absolute;right:10px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:6px;pointer-events:auto;z-index:5;';
+  const actions = [
+    { key: 'C', label: '角色', fn: 'showCharacterPanel' },
+    { key: 'I', label: '背包', fn: 'showInventoryPanel' },
+    { key: 'P', label: '部队', fn: 'showPartyPanel' },
+    { key: 'Q', label: '任务', fn: 'showQuestsPanel' },
+    { key: 'M', label: '存档', fn: 'Game.ui.showSavePanel()' },
+    { key: 'K', label: '帮助', fn: 'showControlsPanel' }
+  ];
+  actions.forEach(a => {
+    const btn = document.createElement('button');
+    btn.style.cssText = 'background:linear-gradient(to bottom,rgba(60,40,20,0.95),rgba(30,20,10,0.95));border:2px solid #8a7a3e;color:#f4d35e;padding:8px 6px;width:60px;cursor:pointer;font-size:11px;font-family:inherit;border-radius:3px;text-align:center;transition:all 0.15s;';
+    btn.innerHTML = '<div style="font-size:14px;">' + a.label + '</div><div style="font-size:9px;color:#8a7a3e;margin-top:2px;">' + a.key + '</div>';
+    btn.onmouseover = () => { btn.style.borderColor = '#f4d35e'; btn.style.color = '#fff'; };
+    btn.onmouseout = () => { btn.style.borderColor = '#8a7a3e'; btn.style.color = '#f4d35e'; };
+    btn.onclick = () => { eval(a.fn); };
+    toolbar.appendChild(btn);
+  });
+  uilayer.appendChild(toolbar);
+}
+
+function hideQuickActions() {
+  const toolbar = document.getElementById('quick-actions');
+  if (toolbar) toolbar.remove();
+}

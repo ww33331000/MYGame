@@ -23,15 +23,16 @@ class Player {
       helmet: null,
       shield: null
     };
-    // 初始位置 - 在一个中立村庄附近
+    // 初始位置 - 在陆地找一个村庄
     if (world && world.settlements && world.settlements.length > 0) {
-      // 找一个村庄
       const village = world.settlements.find(s => s.type === 'village') || world.settlements[0];
-      this.x = village.x + 30;
-      this.y = village.y + 30;
+      // 玩家位置调整为村庄附近的陆地
+      const pt = world.findNearestLand(village.x + 30, village.y + 30, 100);
+      this.x = pt.x;
+      this.y = pt.y;
     } else {
-      this.x = 480;
-      this.y = 300;
+      this.x = 1200;
+      this.y = 900;
     }
     this.targetX = this.x;
     this.targetY = this.y;
@@ -159,8 +160,16 @@ class Player {
     const speed = this.moveSpeed * (1 - Math.min(0.4, this.party.totalCount * 0.02));
     const vx = dx / dist * speed;
     const vy = dy / dist * speed;
-    this.x += vx * dt;
-    this.y += vy * dt;
+    const newX = this.x + vx * dt;
+    const newY = this.y + vy * dt;
+    // 检查是否进入海洋 - 如果是则停止
+    if (Game.world && !Game.world.isLand(newX, newY)) {
+      this.isMoving = false;
+      toast('前面是海洋，无法前进！', '#f87878');
+      return true;
+    }
+    this.x = newX;
+    this.y = newY;
     return false;
   }
 
