@@ -646,6 +646,92 @@ class UIManager {
     CombatSystem.startSiege(this.siegeTarget, Game.player);
   }
 
+  // ===== 遭遇确认对话框（参考骑马与砍杀） =====
+  showEncounterDialog(opts) {
+    this.clearPanels();
+    const isInitiatedByPlayer = opts.isInitiatedByPlayer;
+    const enemyName = opts.enemyName;
+    const enemyCount = opts.enemyCount;
+    const enemyPower = opts.enemyPower;
+    const playerPower = opts.playerPower;
+    // 实力对比提示
+    let powerHint = '';
+    const ratio = playerPower / enemyPower;
+    if (ratio > 1.5) powerHint = '<span style="color:#78d878;">优势明显</span>';
+    else if (ratio > 1.0) powerHint = '<span style="color:#b89856;">略占优势</span>';
+    else if (ratio > 0.7) powerHint = '<span style="color:#f4d35e;">势均力敌</span>';
+    else powerHint = '<span style="color:#f86868;">实力悬殊</span>';
+
+    // 根据接触类型显示不同选项
+    let buttonsHtml = '';
+    if (isInitiatedByPlayer) {
+      // 主动接触：可以选择战斗或离开
+      buttonsHtml = `
+        <div style="display:flex;gap:12px;justify-content:center;margin-top:20px;">
+          <button class="ui-btn primary" onclick="Game.ui.handleEncounterAction('fight')" style="padding:12px 24px;">
+            ⚔️ 发起战斗
+          </button>
+          <button class="ui-btn" onclick="Game.ui.handleEncounterAction('leave')" style="padding:12px 24px;">
+            🚶 离开
+          </button>
+        </div>
+        <p style="color:#888;font-size:11px;margin-top:12px;text-align:center;">你可以选择避开这支敌人</p>
+      `;
+    } else {
+      // 被动接触：敌人主动靠近，无法选择离开
+      buttonsHtml = `
+        <div style="display:flex;gap:12px;justify-content:center;margin-top:20px;">
+          <button class="ui-btn" onclick="Game.ui.handleEncounterAction('negotiate')" style="padding:12px 24px;background:#4a6a8a;">
+            💬 谈判
+          </button>
+          <button class="ui-btn primary" onclick="Game.ui.handleEncounterAction('fight')" style="padding:12px 24px;">
+            ⚔️ 战斗
+          </button>
+          <button class="ui-btn" onclick="Game.ui.handleEncounterAction('retreat')" style="padding:12px 24px;background:#8a4a4a;">
+            🏃 断后撤离
+          </button>
+        </div>
+        <p style="color:#f86868;font-size:11px;margin-top:12px;text-align:center;">⚠️ 敌人已发现你，无法直接离开</p>
+      `;
+    }
+
+    const html = `
+      <div style="text-align:center;padding:30px;">
+        <h2 style="color:#f4d35e;font-size:22px;margin-bottom:16px;">
+          ${isInitiatedByPlayer ? '🔍 发现敌人' : '⚠️ 被敌人发现'}
+        </h2>
+        <div style="background:rgba(30,30,50,0.6);padding:16px;border-radius:8px;margin-bottom:16px;">
+          <p style="color:#d0d0d8;font-size:16px;margin-bottom:8px;">
+            <span style="color:#f86868;">${enemyName}</span>
+          </p>
+          <p style="color:#888;font-size:13px;">
+            敌方部队：${enemyCount} 人 · 战力：${Math.floor(enemyPower)}
+          </p>
+          <p style="color:#888;font-size:13px;">
+            我方部队：${Game.player.party.members.filter(m => !m.isDead).length} 人 · 战力：${Math.floor(playerPower)}
+          </p>
+          <p style="font-size:13px;margin-top:8px;">
+            实力对比：${powerHint}
+          </p>
+        </div>
+        ${buttonsHtml}
+      </div>
+    `;
+    this.addPanel(html, { width: '420px' });
+    // 保存回调
+    this.encounterCallback = opts.onConfirm;
+    this.encounterPatrol = opts.patrol;
+  }
+
+  handleEncounterAction(action) {
+    this.clearPanels();
+    if (this.encounterCallback) {
+      this.encounterCallback(action);
+      this.encounterCallback = null;
+      this.encounterPatrol = null;
+    }
+  }
+
   openBattle(opts) {
     this.clearPanels();
     Game.battleMap.setup(opts.enemies, opts);

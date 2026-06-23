@@ -35,8 +35,8 @@ class WorldMap {
         }
       }
     }
-    // 巡逻AI
-    this.world.updatePatrols(dt);
+    // 巡逻AI（传入玩家用于追踪）
+    this.world.updatePatrols(dt, this.player);
     // 摄像机跟随（平滑）
     const targetCamX = this.player.x - this.viewport.w / 2;
     const targetCamY = this.player.y - this.viewport.h / 2;
@@ -55,39 +55,136 @@ class WorldMap {
       this.camera.x = Utils.clamp(this.camera.x, 0, this.world.width - this.viewport.w);
       this.camera.y = Utils.clamp(this.camera.y, 0, this.world.height - this.viewport.h);
     }
-    // 遭遇检测
-    if (!this.player.isMoving) return;
-    const enemies = this.world.checkEncounter(this.player, 20);
-    if (enemies.length > 0 && Math.random() < 0.02) {
-      const enemy = enemies[0];
-      this.player.stopMove();
-      Game.ui.openBattle({
-        enemies: enemy.units.map(u => u.clone()),
-        enemyName: enemy.factionId === 'bandit' ? '强盗部队' : '敌方巡逻',
-        onVictory: () => {
-          const gold = Utils.randInt(20, 80) * (1 + enemy.units.length);
-          this.player.earnGold(gold);
-          toast('获得 ' + gold + ' 金币', '#78d878');
-          this.player.gainExp(20 + enemy.units.length * 5);
-          const idx = this.world.patrols.indexOf(enemy);
-          if (idx >= 0) this.world.patrols.splice(idx, 1);
+    // ===== 遇敌检测（参考骑马与砍杀） =====
+    // 接触半径
+    const CONTACT_RADIUS = 18;
+    // 被动接触：敌方巡逻队追踪并接触玩家
+    if (!this.pendingEncounter) {
+      const chasingPatrols = this.world.getChasingPatrols(this.player);
+      for (const p of chasingPatrols) {
+        const dist = Utils.dist(p.x, p.y, this.player.x, this.player.y);
+        if (dist < CONTACT_RADIUS) {
+          // 被动接触：敌人主动靠近，玩家无法选择离开
+          this.triggerEncounter(p, false);  // false = 被动接触
+          return;
         }
-      });
-      return;
+      }
     }
-    const rand = this.world.checkRandomBandit(this.player);
-    if (rand) {
-      this.player.stopMove();
+    // 主动接触：玩家移动时碰到敌方巡逻队
+    if (this.player.isMoving && !this.pendingEncounter) {
+      const nearbyHostiles = this.world.getNearbyHostilePatrols(this.player, CONTACT_RADIUS);
+      if (nearbyHostiles.length > 0) {
+        // 找最近的那个
+        let closest = null, minDist = Infinity;
+        nearbyHostiles.forEach(p => {
+          const d = Utils.dist(p.x, p.y, this.player.x, this.player.y);
+          if (d < minDist) { minDist = d; closest = p; }
+        });
+        if (closest && minDist < CONTACT_RADIUS) {
+          // 主动接触：玩家可以选择战斗或离开
+          this.triggerEncounter(closest, true);  // true = 主动接触
+          return;
+        }
+      }
+    }
+  }
+
+  // 触发遭遇（参考骑马与砍杀）
+  triggerEncounter(patrol, isInitiatedByPlayer) {
+    this.player.stopMove();
+    this.pendingEncounter = patrol;
+    // 获取势力名称
+    const faction = this.world.getFaction(patrol.factionId);
+    const enemyName = patrol.factionId === 'bandit' ? '强盗部队' :
+                      (faction ? faction.name + '巡逻队' : '敌方部队');
+    // 计算敌方实力
+    const enemyPower = patrol.power || patrol.units.reduce((s, u) => s + u.baseDamage + u.baseDefense + u.maxHp / 10, 0);
+    const playerPower = this.player.party.members.reduce((s, u) => s + u.baseDamage + u.baseDefense + u.maxHp / 10, 0);
+    // 调用 UI 显示战斗确认对话框
+    if (Game.ui) {
+      Game.ui.showEncounterDialog({
+        patrol: patrol,
+        enemyName: enemyName,
+        enemyCount: patrol.units.length,
+        enemyPower: enemyPower,
+        playerPower: playerPower,
+        isInitiatedByPlayer: isInitiatedByPlayer,
+        onConfirm: (action) => this.handleEncounterAction(action, patrol)
+      });
+    }
+  }
+
+  // 处理玩家选择的遭遇动作
+  handleEncounterAction(action, patrol) {
+    this.pendingEncounter = null;
+    if (action === 'fight') {
+      // 进入战斗
       Game.ui.openBattle({
-        enemies: rand.units.map(u => u.clone()),
-        enemyName: '流浪强盗',
+        enemies: patrol.units.map(u => u.clone()),
+        enemyName: patrol.factionId === 'bandit' ? '强盗部队' :
+                   (this.world.getFaction(patrol.factionId) ? this.world.getFaction(patrol.factionId).name + '巡逻队' : '敌方部队'),
         onVictory: () => {
-          const gold = Utils.randInt(10, 40) * rand.units.length;
+          const gold = Utils.randInt(20, 80) * (1 + patrol.units.length);
           this.player.earnGold(gold);
           toast('获得 ' + gold + ' 金币', '#78d878');
-          this.player.gainExp(15 + rand.units.length * 3);
+          this.player.gainExp(20 + patrol.units.length * 5);
+          const idx = this.world.patrols.indexOf(patrol);
+          if (idx >= 0) this.world.patrols.splice(idx, 1);
+        },
+        onDefeat: () => {
+          // 战败后玩家被俘虏，损失部分金币
+          const lostGold = Math.floor(this.player.party.gold * 0.3);
+          this.player.spendGold(lostGold);
+          toast('战败！损失 ' + lostGold + ' 金币', '#f86868');
         }
       });
+    } else if (action === 'leave') {
+      // 离开（仅主动接触可用）
+      toast('你选择避开敌人', '#b89856');
+      // 玩家后退一小段距离
+      const dx = this.player.x - patrol.x;
+      const dy = this.player.y - patrol.y;
+      const d = Math.sqrt(dx * dx + dy * dy) || 1;
+      this.player.x += dx / d * 40;
+      this.player.y += dy / d * 40;
+    } else if (action === 'negotiate') {
+      // 谈判（仅被动接触可用）
+      const successChance = 0.3 + (this.player.reputation / 100) * 0.2;
+      if (Math.random() < successChance) {
+        // 谈判成功，支付金币后离开
+        const payGold = Utils.randInt(10, 30) * patrol.units.length;
+        if (this.player.spendGold(payGold)) {
+          toast('谈判成功！支付 ' + payGold + ' 金币后离开', '#78d878');
+        } else {
+          toast('金币不足，谈判失败！', '#f86868');
+          // 强制战斗
+          this.handleEncounterAction('fight', patrol);
+        }
+      } else {
+        toast('谈判失败！敌人拒绝你的提议', '#f86868');
+        // 强制战斗
+        this.handleEncounterAction('fight', patrol);
+      }
+    } else if (action === 'retreat') {
+      // 断后撤离（仅被动接触可用）
+      // 撤离成功率取决于玩家速度和部队规模
+      const retreatChance = 0.4 + (this.player.party.totalCount / 20) * 0.2;
+      if (Math.random() < retreatChance) {
+        toast('成功撤离！但部分部队受伤', '#b89856');
+        // 部队受伤
+        this.player.party.members.forEach(u => {
+          if (!u.isDead) u.hp = Math.max(1, u.hp - Math.floor(u.maxHp * 0.2));
+        });
+        // 玩家快速移动远离敌人
+        const dx = this.player.x - patrol.x;
+        const dy = this.player.y - patrol.y;
+        const d = Math.sqrt(dx * dx + dy * dy) || 1;
+        this.player.x += dx / d * 80;
+        this.player.y += dy / d * 80;
+      } else {
+        toast('撤离失败！被迫战斗', '#f86868');
+        this.handleEncounterAction('fight', patrol);
+      }
     }
   }
 
@@ -484,6 +581,15 @@ class WorldMap {
     const sy = p.y - this.camera.y;
     if (sx < -10 || sx > this.viewport.w + 10 || sy < -10 || sy > this.viewport.h + 10) return;
     const faction = this.world.getFaction(p.factionId);
+    // 追踪状态：红色闪烁光环
+    if (p.isChasing) {
+      const pulse = (Math.sin(this.animationTime * 6) + 1) / 2;
+      ctx.fillStyle = 'rgba(248,104,104,' + (0.3 + pulse * 0.2) + ')';
+      ctx.beginPath();
+      ctx.arc(sx, sy, 8 + pulse * 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // 主体
     if (!faction) {
       ctx.fillStyle = '#a82828';
       ctx.beginPath();
@@ -500,6 +606,14 @@ class WorldMap {
       ctx.strokeStyle = '#fff';
       ctx.lineWidth = 1;
       ctx.stroke();
+    }
+    // 追踪标记（感叹号）
+    if (p.isChasing) {
+      ctx.fillStyle = '#f86868';
+      ctx.font = 'bold 10px "Microsoft YaHei"';
+      ctx.textAlign = 'center';
+      ctx.fillText('!', sx, sy - 10);
+      ctx.textAlign = 'left';
     }
   }
 

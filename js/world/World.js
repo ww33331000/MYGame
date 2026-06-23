@@ -441,42 +441,99 @@ class World {
     return player.party.totalCount >= 8;
   }
 
-  updatePatrols(dt) {
+  updatePatrols(dt, player) {
     this.patrols.forEach(p => {
-      p.moveTimer -= dt;
-      if (p.moveTimer <= 0) {
-        p.moveTimer = Utils.randInt(3, 10);
-        // 随机在原地徘徊（仅在陆地范围内）
-        const angle = Math.random() * Math.PI * 2;
-        let tx = p.homeX + Math.cos(angle) * 60;
-        let ty = p.homeY + Math.sin(angle) * 60;
-        // 确保目标在陆地
-        if (!this.isLand(tx, ty)) {
-          const safe = this.findNearestLand(tx, ty, 50);
-          tx = safe.x;
-          ty = safe.y;
-        }
-        p.tx = tx;
-        p.ty = ty;
-      }
-      if (p.tx != null) {
-        const dx = p.tx - p.x;
-        const dy = p.ty - p.y;
-        const d = Math.sqrt(dx * dx + dy * dy);
-        if (d > 2) {
-          const nx = p.x + dx / d * p.speed * dt;
-          const ny = p.y + dy / d * p.speed * dt;
-          if (this.isLand(nx, ny)) {
-            p.x = nx;
-            p.y = ny;
-          } else {
-            // 重新选择目标
-            p.moveTimer = 0;
-            p.tx = null;
-            p.ty = null;
+      // ===== 追踪玩家逻辑（被动接触） =====
+      // 敌对势力巡逻队会主动追踪玩家
+      let isChasing = false;
+      if (player && this.isPatrolHostileToPlayer(p, player)) {
+        const distToPlayer = Utils.dist(p.x, p.y, player.x, player.y);
+        // 视野范围：敌对巡逻队会追踪 150 范围内的玩家
+        if (distToPlayer < 150) {
+          isChasing = true;
+          // 追踪速度比正常快 1.5 倍
+          const chaseSpeed = p.speed * 1.5;
+          const dx = player.x - p.x;
+          const dy = player.y - p.y;
+          const d = Math.sqrt(dx * dx + dy * dy);
+          if (d > 2) {
+            const nx = p.x + dx / d * chaseSpeed * dt;
+            const ny = p.y + dy / d * chaseSpeed * dt;
+            if (this.isLand(nx, ny)) {
+              p.x = nx;
+              p.y = ny;
+              p.isChasing = true;  // 标记正在追踪
+              p.chaseTarget = { x: player.x, y: player.y };
+            }
           }
         }
       }
+      // ===== 正常巡逻逻辑 =====
+      if (!isChasing) {
+        p.isChasing = false;
+        p.chaseTarget = null;
+        p.moveTimer -= dt;
+        if (p.moveTimer <= 0) {
+          p.moveTimer = Utils.randInt(3, 10);
+          // 随机在原地徘徊（仅在陆地范围内）
+          const angle = Math.random() * Math.PI * 2;
+          let tx = p.homeX + Math.cos(angle) * 60;
+          let ty = p.homeY + Math.sin(angle) * 60;
+          // 确保目标在陆地
+          if (!this.isLand(tx, ty)) {
+            const safe = this.findNearestLand(tx, ty, 50);
+            tx = safe.x;
+            ty = safe.y;
+          }
+          p.tx = tx;
+          p.ty = ty;
+        }
+        if (p.tx != null) {
+          const dx = p.tx - p.x;
+          const dy = p.ty - p.y;
+          const d = Math.sqrt(dx * dx + dy * dy);
+          if (d > 2) {
+            const nx = p.x + dx / d * p.speed * dt;
+            const ny = p.y + dy / d * p.speed * dt;
+            if (this.isLand(nx, ny)) {
+              p.x = nx;
+              p.y = ny;
+            } else {
+              // 重新选择目标
+              p.moveTimer = 0;
+              p.tx = null;
+              p.ty = null;
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // 判断巡逻队是否对玩家敌对
+  isPatrolHostileToPlayer(p, player) {
+    // 强盗永远敌对
+    if (p.factionId === 'bandit') return true;
+    // 中立势力不敌对
+    if (p.factionId === 'neutral') return false;
+    // 同势力不敌对
+    if (p.factionId === player.factionId) return false;
+    // 检查势力关系
+    const playerFaction = this.getFaction(player.factionId);
+    if (!playerFaction) return true;  // 玩家无势力时，所有势力敌对
+    return playerFaction.isHostile(p.factionId);
+  }
+
+  // 获取正在追踪玩家的巡逻队
+  getChasingPatrols(player) {
+    return this.patrols.filter(p => p.isChasing && this.isPatrolHostileToPlayer(p, player));
+  }
+
+  // 获取玩家附近的所有敌对巡逻队（用于主动接触检测）
+  getNearbyHostilePatrols(player, radius) {
+    return this.patrols.filter(p => {
+      const dist = Utils.dist(p.x, p.y, player.x, player.y);
+      return dist < radius && this.isPatrolHostileToPlayer(p, player);
     });
   }
 }
