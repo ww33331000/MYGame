@@ -91,6 +91,34 @@ namespace MedievalWarfare.EditorTools
             }
         }
 
+        [MenuItem("中世纪战争/构建/WebGL版本")]
+        public static void BuildWebGL()
+        {
+            string outputPath = "Build/WebGL";
+            BuildPlayerOptions options = new BuildPlayerOptions
+            {
+                scenes = GetScenePaths(),
+                locationPathName = outputPath,
+                target = BuildTarget.WebGL,
+                options = BuildOptions.None
+            };
+
+            BuildReport report = BuildPipeline.BuildPlayer(options);
+            BuildSummary summary = report.summary;
+
+            if (summary.result == BuildResult.Succeeded)
+            {
+                Debug.Log($"WebGL构建成功！输出路径: {outputPath}");
+                EditorUtility.DisplayDialog("构建成功",
+                    $"WebGL版本构建完成！\n输出路径: {outputPath}\n\n使用方法:\n1. cd {outputPath}\n2. python -m http.server 8080\n3. 浏览器访问 http://localhost:8080",
+                    "好的");
+            }
+            else
+            {
+                Debug.LogError($"构建失败: {summary.result}");
+            }
+        }
+
         private static string[] GetScenePaths()
         {
             return new string[]
